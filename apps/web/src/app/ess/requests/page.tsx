@@ -9,6 +9,8 @@ import {
   createRequest,
   cancelRequest,
   getLeaveTypes,
+  getMe,
+  isAdminRole,
   type Branding,
   type LeaveRequest,
   type LeaveType,
@@ -54,6 +56,7 @@ function RequestsView() {
   const [branding, setBranding] = useState<Branding | null>(null);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
 
@@ -76,13 +79,15 @@ function RequestsView() {
     let active = true;
     (async () => {
       // Leave types are HR-only on the API; treat failure as "no list".
-      const [brandRes, ltRes] = await Promise.allSettled([
+      const [brandRes, ltRes, meRes] = await Promise.allSettled([
         getBranding(),
         getLeaveTypes(),
+        getMe(),
       ]);
       if (!active) return;
       if (brandRes.status === "fulfilled") setBranding(brandRes.value.branding);
       if (ltRes.status === "fulfilled") setLeaveTypes(ltRes.value.leaveTypes);
+      if (meRes.status === "fulfilled") setIsAdmin(isAdminRole(meRes.value.role));
       try {
         await loadRequests();
       } catch (err) {
@@ -145,6 +150,7 @@ function RequestsView() {
         appName={branding?.appName}
         primaryColor={branding?.primaryColor}
         active="requests"
+        isAdmin={isAdmin}
       />
       <main className="mx-auto max-w-2xl p-4 space-y-6">
         {/* New request form */}

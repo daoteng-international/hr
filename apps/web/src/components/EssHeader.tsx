@@ -13,10 +13,13 @@ export function EssHeader({
   appName,
   primaryColor,
   active,
+  isAdmin = false,
 }: {
   appName?: string;
   primaryColor?: string;
   active: "home" | "requests";
+  /** When the signed-in user is an HR/platform admin, show a link to /admin. */
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
 
@@ -55,12 +58,23 @@ export function EssHeader({
           {tab("requests", "我的申請", "/ess/requests")}
         </nav>
       </div>
-      <button
-        onClick={logout}
-        className="text-sm text-gray-500 hover:text-gray-800"
-      >
-        登出
-      </button>
+      <div className="flex items-center gap-3">
+        {isAdmin && (
+          <button
+            onClick={() => router.push("/admin")}
+            className="rounded-md border px-3 py-1.5 text-sm font-medium"
+            style={{ borderColor: "var(--brand)", color: "var(--brand)" }}
+          >
+            後台
+          </button>
+        )}
+        <button
+          onClick={logout}
+          className="text-sm text-gray-500 hover:text-gray-800"
+        >
+          登出
+        </button>
+      </div>
     </header>
   );
 }

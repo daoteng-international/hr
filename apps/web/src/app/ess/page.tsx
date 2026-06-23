@@ -8,6 +8,8 @@ import {
   getPunchToday,
   getAnnouncements,
   postPunch,
+  getMe,
+  isAdminRole,
   type Branding,
   type PunchRecord,
   type Announcement,
@@ -38,6 +40,7 @@ function EssHome() {
   const [records, setRecords] = useState<PunchRecord[]>([]);
   const [status, setStatus] = useState<"working" | "off">("off");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [punching, setPunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +54,16 @@ function EssHome() {
   useEffect(() => {
     let active = true;
     (async () => {
-      // Branding + announcements are best-effort; punch is the core.
-      const [brandRes, annRes] = await Promise.allSettled([
+      // Branding + announcements + me are best-effort; punch is the core.
+      const [brandRes, annRes, meRes] = await Promise.allSettled([
         getBranding(),
         getAnnouncements(),
+        getMe(),
       ]);
       if (!active) return;
       if (brandRes.status === "fulfilled") setBranding(brandRes.value.branding);
       if (annRes.status === "fulfilled") setAnnouncements(annRes.value.announcements);
+      if (meRes.status === "fulfilled") setIsAdmin(isAdminRole(meRes.value.role));
       try {
         await loadPunch();
       } catch (err) {
@@ -98,6 +103,7 @@ function EssHome() {
         appName={branding?.appName}
         primaryColor={branding?.primaryColor}
         active="home"
+        isAdmin={isAdmin}
       />
       <main className="mx-auto max-w-2xl p-4 space-y-6">
         {/* Punch card */}

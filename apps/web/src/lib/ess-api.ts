@@ -10,6 +10,27 @@ export interface Branding {
   logoUrl?: string;
 }
 
+export interface Me {
+  id: string;
+  name: string;
+  role: string;
+  deptId: string | null;
+  empNo: string | null;
+  status: string;
+  email: string | null;
+}
+
+/** The caller's own employee profile; used to detect HR admins in the ESS. */
+export function getMe() {
+  return apiFetch<Me>("/me");
+}
+
+const ADMIN_ROLES = ["hr_admin", "platform_admin"];
+
+export function isAdminRole(role: string | undefined): boolean {
+  return !!role && ADMIN_ROLES.includes(role);
+}
+
 export interface BrandingResponse {
   branding: Branding | null;
   features: Record<string, unknown> | null;

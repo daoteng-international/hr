@@ -12,6 +12,7 @@ import { leaveTypesRouter } from "./routes/leave-types.js"
 import { approvalFlowsRouter } from "./routes/approval-flows.js"
 import { requestsRouter } from "./routes/requests.js"
 import { announcementsRouter } from "./routes/announcements.js"
+import { meRouter } from "./routes/me.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -46,6 +47,7 @@ app.use(leaveTypesRouter)
 app.use(approvalFlowsRouter)
 app.use(requestsRouter)
 app.use(announcementsRouter)
+app.use(meRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
