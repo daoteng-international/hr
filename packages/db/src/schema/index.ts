@@ -1,2 +1,4 @@
-// Schema barrel. Tables are added in Task 3.
-export {}
+// Schema barrel.
+export { tenants } from "./tenants"
+export { departments } from "./departments"
+export { employees } from "./employees"
