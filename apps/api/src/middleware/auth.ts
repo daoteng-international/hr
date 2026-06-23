@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express"
-import { getUserFromToken } from "../lib/supabase"
+import { getUserFromToken } from "../lib/supabase.js"
 
 /**
  * Validates the `Authorization: Bearer <token>` header, resolves the user via

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "../lib/supabase"
+import { supabaseAdmin } from "../lib/supabase.js"
 
 export interface ProvisionTenantInput {
   name: string

@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
-import { requirePlatformOperator } from "../middleware/platform"
-import { provisionTenant } from "../services/tenants"
+import { requirePlatformOperator } from "../middleware/platform.js"
+import { provisionTenant } from "../services/tenants.js"
 
 const bodySchema = z.object({
   name: z.string().trim().min(1, "name is required"),

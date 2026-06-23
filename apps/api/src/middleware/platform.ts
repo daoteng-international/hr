@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express"
-import { requireAuth } from "./auth"
+import { requireAuth } from "./auth.js"
 
 /**
  * Parses the PLATFORM_ADMIN_EMAILS env var (comma-separated) into a normalised

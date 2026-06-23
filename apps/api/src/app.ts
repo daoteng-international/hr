@@ -1,9 +1,9 @@
 import express, { type Request, type Response, type NextFunction } from "express"
 import cors from "cors"
-import { logger } from "./lib/logger"
-import { adminTenantsRouter } from "./routes/admin-tenants"
-import { tenantRouter } from "./routes/tenant"
-import { employeesRouter } from "./routes/employees"
+import { logger } from "./lib/logger.js"
+import { adminTenantsRouter } from "./routes/admin-tenants.js"
+import { tenantRouter } from "./routes/tenant.js"
+import { employeesRouter } from "./routes/employees.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")

@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express"
-import { requireAuth } from "../middleware/auth"
-import { requireTenant } from "../middleware/tenant"
-import { supabaseAdmin } from "../lib/supabase"
+import { requireAuth } from "../middleware/auth.js"
+import { requireTenant } from "../middleware/tenant.js"
+import { supabaseAdmin } from "../lib/supabase.js"
 
 export const tenantRouter = Router()
 

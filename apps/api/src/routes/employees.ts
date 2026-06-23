@@ -1,8 +1,8 @@
 import { Router, type Request, type Response, type NextFunction } from "express"
-import { requireAuth } from "../middleware/auth"
-import { requireTenant } from "../middleware/tenant"
-import { requireHrAdmin } from "../middleware/role"
-import { supabaseAdmin } from "../lib/supabase"
+import { requireAuth } from "../middleware/auth.js"
+import { requireTenant } from "../middleware/tenant.js"
+import { requireHrAdmin } from "../middleware/role.js"
+import { supabaseAdmin } from "../lib/supabase.js"
 
 export const employeesRouter = Router()
 

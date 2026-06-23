@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express"
-import { supabaseAdmin } from "../lib/supabase"
+import { supabaseAdmin } from "../lib/supabase.js"
 
 /**
  * Builds a middleware that authorises the current user against an allow-list of

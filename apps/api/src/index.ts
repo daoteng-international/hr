@@ -6,8 +6,8 @@ import dotenv from "dotenv"
 const __dirname = dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: resolve(__dirname, "../../../.env") })
 
-const { app } = await import("./app")
-const { logger } = await import("./lib/logger")
+const { app } = await import("./app.js")
+const { logger } = await import("./lib/logger.js")
 
 const port = Number(process.env.PORT ?? 4000)
 
