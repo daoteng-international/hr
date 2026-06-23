@@ -31,12 +31,13 @@ const SELECT_COLS = "id, tenant_id, code, name, paid, created_at"
  * though supabaseAdmin bypasses RLS.
  */
 
-// GET /leave-types — list this tenant's leave types.
+// GET /leave-types — list this tenant's leave types. Readable by any
+// authenticated member of the tenant (employees need it to file leave
+// requests); create/update/delete remain HR-admin-only below.
 leaveTypesRouter.get(
   "/leave-types",
   requireAuth,
   requireTenant,
-  requireHrAdmin,
   async (_req: Request, res: Response, next: NextFunction) => {
     const tenantId = res.locals.tenantId as string
     try {
