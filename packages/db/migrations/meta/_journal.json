@@ -22,6 +22,13 @@
       "when": 1782239386651,
       "tag": "0002_keen_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782239883301,
+      "tag": "0003_faulty_grandmaster",
+      "breakpoints": true
     }
   ]
 }

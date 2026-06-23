@@ -8,6 +8,9 @@ import { departmentsRouter } from "./routes/departments.js"
 import { shiftsRouter } from "./routes/shifts.js"
 import { schedulesRouter } from "./routes/schedules.js"
 import { punchRouter } from "./routes/punch.js"
+import { leaveTypesRouter } from "./routes/leave-types.js"
+import { approvalFlowsRouter } from "./routes/approval-flows.js"
+import { requestsRouter } from "./routes/requests.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -38,6 +41,9 @@ app.use(departmentsRouter)
 app.use(shiftsRouter)
 app.use(schedulesRouter)
 app.use(punchRouter)
+app.use(leaveTypesRouter)
+app.use(approvalFlowsRouter)
+app.use(requestsRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
