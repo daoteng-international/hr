@@ -1,0 +1,31 @@
+name: Deploy Web to Vercel
+
+# Deploys apps/web to Vercel via the CLI (works with a PRIVATE repo, unlike
+# Vercel's native Git integration which needs a Pro plan for private org repos).
+# Vercel builds remotely using the project's Root Directory (apps/web) setting.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Vercel CLI
+        run: npm i -g vercel
+      - name: Deploy Web to Vercel (production)
+        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
