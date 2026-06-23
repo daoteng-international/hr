@@ -29,6 +29,13 @@
       "when": 1782239883301,
       "tag": "0003_faulty_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782240502583,
+      "tag": "0004_shiny_vance_astro",
+      "breakpoints": true
     }
   ]
 }
