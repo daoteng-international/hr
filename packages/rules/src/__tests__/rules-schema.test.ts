@@ -17,8 +17,8 @@ const validSample = {
   },
   overtime: {
     rules: [
-      { when: "holiday", multiplier: 1.67, compTime: false },
-      { when: "weekday", multiplier: 1.34 },
+      { when: "rest_day", multiplier: 1.67, compTime: false },
+      { when: "weekday_ot", multiplier: 1.34 },
     ],
   },
   night: {
@@ -43,7 +43,7 @@ describe("rules-schema", () => {
     expect(parsed.attendance_bonus.tiers[2].deduct).toBe(2000);
 
     expect(parsed.overtime.rules[0]).toEqual({
-      when: "holiday",
+      when: "rest_day",
       multiplier: 1.67,
       compTime: false,
     });
