@@ -10,7 +10,7 @@
 - [x] **F3 打卡 API**（schema punch_records + RLS）：員工 punch in/out（GPS lat/lng/source）；查當日狀態；不可代打。驗收：打卡寫入正確、本人限定、租戶隔離、測試綠。
 - [x] **F4 請假/加班/補卡 + 多關簽核**（schema leave_types/leave_requests/approval_flows/approval_steps + RLS）：送單、簽核流程、approve/reject 狀態機。驗收：狀態轉移正確、簽核者權限、測試綠。
 - [x] **F5 公佈欄**（schema announcements + RLS）：HR 發佈、員工讀。驗收：租戶隔離、測試綠。
-- [ ] **F6 ESS 員工自助頁**（apps/web /ess）：登入、打卡、我的出勤、送申請。驗收：build 綠、可呼叫 API。
+- [x] **F6 ESS 員工自助頁**（apps/web /ess）：登入、打卡、我的出勤、送申請。驗收：build 綠、可呼叫 API。
 - [ ] **F7 後台管理頁**（apps/web /admin）：departments/employees/shifts/schedules/簽核。驗收：build 綠。
 - [ ] **F8 LINE 通知**：忘打卡/簽核通知（LINE Messaging API）。驗收：發送函式 + 測試。
 
@@ -21,3 +21,4 @@
 - 2026-06-24 / F3 打卡 API / punch.test.ts 12 passed（API 全套 55 passed、typecheck 0 error）；新增 punch_records 表（migration 0002 + index）+ RLS 0003（relrowsecurity=true、3 policies：self_or_hr_read / self_insert 防代打 / hr_write）、POST /punch（自動推斷 in/out、本人限定）/ GET /punch/today（含 working|off 狀態）/ GET /punch 查詢（HR 全租戶、非 HR 強制本人、日期窗）
 - 2026-06-24 / F4 請假/加班/補卡 + 多關簽核 / requests.test.ts 21 passed（API 全套 76 passed、typecheck 0 error、build 綠）；新增 leave_types/approval_flows/leave_requests/approval_steps 4 表（migration 0003）+ RLS 0004（4 表 relrowsecurity=true、共 9 policies：leave_types/approval_flows 各 tenant_read+hr_write、lr_read/lr_self_insert/lr_hr_write、as_read/as_hr_write）；leave-types CRUD（HR）、approval-flows GET/PUT:kind upsert（HR）、requests 送單（依 kind 解析 approval_flow 建有序 approval_steps，無流程則退回任一 hr_admin 單關）/ GET 依角色（HR 全租戶、員工本人∪當前輪到自己簽的、?status 篩選）/ approve（推進 current_step 或最後一關→approved）/ reject（→rejected）/ cancel（送單本人限 pending）；狀態機守衛：非當前簽核人 403、非 pending 409、非送單者 cancel 403
 - 2026-06-24 / F5 公佈欄 / announcements.test.ts 7 passed（API 全套 83 passed、typecheck 0 error）；新增 announcements 表（migration 0004_shiny_vance_astro + index(tenant_id,created_at)）+ RLS 0005（relrowsecurity=true、2 policies：ann_tenant_read 同租戶可讀 / ann_hr_write 僅 HR 全寫）；GET /announcements（全員工可讀、created_at desc）、POST（HR、反查 created_by employee id）/ PATCH（HR、更新 title/body/audience+updated_at）/ DELETE（HR）；皆強制 tenant_id 隔離，跨租戶 PATCH/DELETE→404
+- 2026-06-24 / F6 ESS 員工自助頁 / `npm -w @hr/web run build` 綠（5 routes：/、/login、/ess、/ess/requests、/_not-found 全 static prerender）、typecheck 0 error；加 @supabase/supabase-js；新增 lib（supabase-browser singleton、api-client apiFetch 自動帶 supabase access_token、ess-api 型別化呼叫、use-session hook）+ AuthGate/EssHeader 元件；/login（signInWithPassword）、/ess（GET /punch/today + 大顆上下班打卡 POST /punch 帶 GPS fallback web、GET /announcements）、/ess/requests（GET /requests 狀態色標、POST /requests 表單 leave/ot/fix_punch、pending 可 POST /requests/:id/cancel）；/ 依 session redirect。注意：GET /leave-types 是 HR-only，員工取不到時假別選單優雅降級（不指定 leaveTypeId 仍可送單）

@@ -18,6 +18,8 @@ function getBranding(): Branding {
   // TODO(P1): fetch GET /api/tenant/branding once auth/tenant context exists.
   return {
     brandColor: "#1F4E79",
+    // Default app name shown before the per-tenant branding loads client-side
+    // (the /ess pages re-fetch GET /api/tenant/branding and apply primaryColor).
     title: "HR 差勤系統",
   };
 }
