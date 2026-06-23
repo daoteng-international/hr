@@ -2,6 +2,8 @@ import express, { type Request, type Response, type NextFunction } from "express
 import cors from "cors"
 import { logger } from "./lib/logger"
 import { adminTenantsRouter } from "./routes/admin-tenants"
+import { tenantRouter } from "./routes/tenant"
+import { employeesRouter } from "./routes/employees"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -26,6 +28,8 @@ app.get("/health", (_req: Request, res: Response) => {
 
 // Feature routes.
 app.use(adminTenantsRouter)
+app.use(tenantRouter)
+app.use(employeesRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
