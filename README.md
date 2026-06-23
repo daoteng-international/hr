@@ -10,3 +10,7 @@
 Monorepo（npm workspace + Turbo）｜`apps/web` Next.js 16｜`apps/api` Express 5｜`apps/worker` BullMQ｜`packages/db` Drizzle + Supabase + RLS｜`packages/rules` 規則/薪資引擎。
 
 > 狀態：P0 規劃完成，尚未開始實作。
+
+## 線上環境
+- Web（Vercel）: https://web-phi-jade-50.vercel.app
+- API（Railway）: https://hr-production-994f.up.railway.app/health
