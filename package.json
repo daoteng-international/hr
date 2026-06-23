@@ -16,5 +16,6 @@
     "vitest": "^2",
     "@types/node": "^22"
   },
-  "engines": { "node": ">=22" }
+  "engines": { "node": ">=22" },
+  "packageManager": "npm@11.9.0"
 }
