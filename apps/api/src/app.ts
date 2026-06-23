@@ -7,6 +7,7 @@ import { employeesRouter } from "./routes/employees.js"
 import { departmentsRouter } from "./routes/departments.js"
 import { shiftsRouter } from "./routes/shifts.js"
 import { schedulesRouter } from "./routes/schedules.js"
+import { punchRouter } from "./routes/punch.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -36,6 +37,7 @@ app.use(employeesRouter)
 app.use(departmentsRouter)
 app.use(shiftsRouter)
 app.use(schedulesRouter)
+app.use(punchRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {

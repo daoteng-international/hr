@@ -1,0 +1,255 @@
+import { Router, type Request, type Response, type NextFunction } from "express"
+import { z } from "zod"
+import { requireAuth } from "../middleware/auth.js"
+import { requireTenant } from "../middleware/tenant.js"
+import { supabaseAdmin } from "../lib/supabase.js"
+
+export const punchRouter = Router()
+
+// "YYYY-MM-DD".
+const dateRe = /^\d{4}-\d{2}-\d{2}$/
+
+const punchSchema = z.object({
+  // type is optional — when omitted we infer it from the employee's last punch
+  // today (none / last 'out' → 'in'; last 'in' → 'out').
+  type: z.enum(["in", "out"]).optional(),
+  source: z.enum(["gps", "web", "line"]).optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  deviceId: z.string().trim().min(1).optional(),
+  // NOTE: we deliberately do NOT read employeeId from the body. The punch is
+  // always recorded for the token owner (anti-proxy-punch). Any employeeId a
+  // client sends is ignored — kept lax here so a stray field doesn't 400.
+})
+
+const querySchema = z.object({
+  employeeId: z.string().uuid().optional(),
+  from: z.string().regex(dateRe).optional(),
+  to: z.string().regex(dateRe).optional(),
+})
+
+const SELECT_COLS = "id, tenant_id, employee_id, punch_at, type, source, lat, lng, device_id"
+
+// UTC day window [start, end) covering "today" — used to scope today's punches
+// and to infer the next in/out. Deterministic and timezone-stable for the API.
+function todayWindow(): { start: string; end: string } {
+  const now = new Date()
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+  )
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+// Resolve the caller's own employee row (id + role) in this tenant, or null.
+async function resolveSelf(
+  tenantId: string,
+  userId: string,
+): Promise<{ id: string; role: string } | null> {
+  const { data, error } = await supabaseAdmin
+    .from("employees")
+    .select("id, role")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .maybeSingle()
+  if (error) throw new Error(`resolve self employee: ${error.message}`)
+  return data ? { id: data.id as string, role: data.role as string } : null
+}
+
+function isHrRole(role: string | undefined): boolean {
+  return !!role && ["hr_admin", "platform_admin"].includes(role)
+}
+
+/**
+ * POST /punch — the authenticated employee clocks in/out for THEMSELVES.
+ *
+ * Anti-proxy-punch: the employee_id written is always derived from the token
+ * (req.auth.userId → employees row in this tenant); any employeeId in the body
+ * is ignored. A caller with no employee row in this tenant gets 403.
+ *
+ * If `type` is omitted it is inferred from the employee's last punch today:
+ * no punch yet / last was 'out' → 'in'; last was 'in' → 'out'. Optional
+ * source/lat/lng/deviceId are stored as given (source defaults to 'web').
+ */
+punchRouter.post(
+  "/punch",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+
+    const parsed = punchSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+    const { type, source, lat, lng, deviceId } = parsed.data
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      if (!self) {
+        // No employee identity in this tenant → cannot punch (and definitely
+        // cannot punch for anyone else).
+        res.status(403).json({ error: "not_an_employee" })
+        return
+      }
+
+      // Infer in/out from today's last punch when the client didn't specify.
+      let resolvedType = type
+      if (!resolvedType) {
+        const { start, end } = todayWindow()
+        const { data: last, error: lastErr } = await supabaseAdmin
+          .from("punch_records")
+          .select("type")
+          .eq("tenant_id", tenantId)
+          .eq("employee_id", self.id)
+          .gte("punch_at", start)
+          .lt("punch_at", end)
+          .order("punch_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (lastErr) {
+          next(new Error(`POST /punch (infer): ${lastErr.message}`))
+          return
+        }
+        resolvedType = last?.type === "in" ? "out" : "in"
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("punch_records")
+        .insert({
+          tenant_id: tenantId,
+          employee_id: self.id,
+          type: resolvedType,
+          source: source ?? "web",
+          lat: lat ?? null,
+          lng: lng ?? null,
+          device_id: deviceId ?? null,
+        })
+        .select("id, type, punch_at")
+        .single()
+
+      if (error || !data) {
+        next(new Error(`POST /punch: ${error?.message}`))
+        return
+      }
+      res.status(201).json({ id: data.id, type: data.type, punchAt: data.punch_at })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * GET /punch/today — the caller's own punches for today (chronological) plus a
+ * derived status: 'working' if the last punch today was 'in', else 'off'.
+ * A caller with no employee row returns an empty list and status 'off'.
+ */
+punchRouter.get(
+  "/punch/today",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      if (!self) {
+        res.status(200).json({ records: [], status: "off" })
+        return
+      }
+
+      const { start, end } = todayWindow()
+      const { data, error } = await supabaseAdmin
+        .from("punch_records")
+        .select(SELECT_COLS)
+        .eq("tenant_id", tenantId)
+        .eq("employee_id", self.id)
+        .gte("punch_at", start)
+        .lt("punch_at", end)
+        .order("punch_at", { ascending: true })
+
+      if (error) {
+        next(new Error(`GET /punch/today: ${error.message}`))
+        return
+      }
+      const records = data ?? []
+      const lastType = records.length ? records[records.length - 1].type : null
+      const status = lastType === "in" ? "working" : "off"
+      res.status(200).json({ records, status })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * GET /punch?employeeId=&from=&to= — list punch records.
+ *
+ * Role-based scoping (on top of the always-on tenant filter):
+ *   • HR admin / platform admin → may see the whole tenant; honours an optional
+ *     employeeId filter and from/to (YYYY-MM-DD) date window.
+ *   • Any other role → forced to their OWN employee row regardless of the
+ *     employeeId param (passing someone else's id reveals nothing).
+ *
+ * Uses supabaseAdmin (bypasses RLS); the explicit filters are the load-bearing
+ * guard. from/to are inclusive on the date; `to` is expanded to end-of-day.
+ */
+punchRouter.get(
+  "/punch",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+
+    const parsed = querySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() })
+      return
+    }
+    const { employeeId, from, to } = parsed.data
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      const isHr = isHrRole(self?.role)
+
+      let query = supabaseAdmin.from("punch_records").select(SELECT_COLS).eq("tenant_id", tenantId)
+
+      if (isHr) {
+        if (employeeId) query = query.eq("employee_id", employeeId)
+      } else {
+        // Non-HR: always pinned to self. No employee row → impossible filter →
+        // empty result (never another user's data).
+        query = query.eq("employee_id", self?.id ?? "00000000-0000-0000-0000-000000000000")
+      }
+
+      if (from) query = query.gte("punch_at", `${from}T00:00:00.000Z`)
+      if (to) query = query.lte("punch_at", `${to}T23:59:59.999Z`)
+
+      const { data, error } = await query.order("punch_at", { ascending: true })
+      if (error) {
+        next(new Error(`GET /punch: ${error.message}`))
+        return
+      }
+      res.status(200).json({ records: data ?? [] })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
