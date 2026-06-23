@@ -4,6 +4,7 @@ import { logger } from "./lib/logger.js"
 import { adminTenantsRouter } from "./routes/admin-tenants.js"
 import { tenantRouter } from "./routes/tenant.js"
 import { employeesRouter } from "./routes/employees.js"
+import { departmentsRouter } from "./routes/departments.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -30,6 +31,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.use(adminTenantsRouter)
 app.use(tenantRouter)
 app.use(employeesRouter)
+app.use(departmentsRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
