@@ -36,9 +36,7 @@ P2 把「差勤規則 → 工時結算 → 薪資單」這條最核心的 IP 變
     `/salary/:employeeId`（HR GET/PUT upsert）、`/attendance/settle`（HR 批次:配對 punch + schedule→shift +
     租戶 rule_config → `computeAttendanceDay` → upsert attendance_days，冪等）、`/attendance-days`（HR 全租戶/員工本人）。
     結算把 UTC 打卡瞬間轉「商業本地牆鐘」餵引擎（與班表 HH:MM 對齊、跨時區決定性一致）。
-- [ ] **F3 薪資單產生 + API**：以 `computePayslip` 為核心，HR 觸發月結，產 payslip（含 lines）
-  落地 + GET API（HR 全租戶、員工本人）；租戶隔離 + RLS。
-- [ ] **F3 薪資單產生 + API**：以 `computePayslip` 為核心，HR 觸發月結，產 payslip（含 lines）
+- [x] **F3 薪資單產生 + API**：以 `computePayslip` 為核心，HR 觸發月結，產 payslip（含 lines）
   落地 + GET API（HR 全租戶、員工本人）；租戶隔離 + RLS。
 - [ ] **F4 補休 / 特休 ledger**：compTime 加班轉補休時數入帳、特休給假/動用，餘額查詢；
   與 F1 的 `compTimeMinutes` 串接。
@@ -51,6 +49,17 @@ P2 把「差勤規則 → 工時結算 → 薪資單」這條最核心的 IP 變
   ① 全勤階梯 遲到 5→扣0/實發2000、6→600/1400、19→600/1400、20→2000/0；
   ② 例假日 8h×1.67 = 2672（不補休 compTime=0）、夜間 00:00–08:30 8h×2.0 = 3200；
   ③ 按出勤天數 22×1600 = 35200、某日 10h 超 8h 兩小時 → flat 2×200 = 400（覆蓋倍率）。
+- 2026-06-24 / F3 薪資單產生 + API（接入 payroll-engine `computePayslip`）/ payroll-run.test.ts 7 passed
+  （@hr/api 全套 108 passed、無回歸先前 101；全 workspace typecheck 5/5 0 error）。
+  DB：payslips 表（tenant_id NOT NULL、unique(tenant,employee,period)、breakdown jsonb 存引擎 lines、
+  status draft|finalized、version）+ migration 0006_lumpy_union_jack + RLS 0007_rls_payslips（經 Management API
+  套用：relrowsecurity=true、ps_self_or_hr_read SELECT + ps_hr_write ALL 兩條 policy、unique index 就緒）。
+  API：`POST /payroll/run`（HR；單一/全租戶有 salary 員工，蒐集該月 attendance_days+salary+rule_config→
+  computePayslip→upsert draft；已 finalized 跳過並列 skipped；回 {generated,skipped}）、
+  `GET /payslips`（HR 全租戶／員工本人）、`GET /payslips/:id`（本人或 HR，別人/跨租戶 404）、
+  `POST /payslips/:id/finalize`（HR；draft→finalized，已 finalized 409，finalize 後 run 不覆蓋）。
+  薪資單實算對引擎 = 期望：monthly base 36000、加班 2h×200×1.34=536、夜間 1h×200×1.34=268、
+  全勤 2000−600（遲到10>5階）=1400、gross 38204。Supabase 測試資料 afterAll 清乾淨（0 殘留 tenant/payslip/auth user）。
 - 2026-06-24 / F2 規則設定+薪資結構+工時結算（接入 @hr/rules 引擎）/ payroll-settle.test.ts 14 passed
   （@hr/api 全套 101 passed、無回歸先前 87；全 workspace typecheck 5/5 0 error；@hr/rules 23、@hr/db 5 仍綠）。
   **node dist smoke test（部署關鍵）**：`build -w @hr/rules && build -w @hr/api`（乾淨重建 exit 0）後

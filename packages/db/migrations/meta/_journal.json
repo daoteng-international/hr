@@ -43,6 +43,13 @@
       "when": 1782268215436,
       "tag": "0005_ambitious_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782306553180,
+      "tag": "0006_lumpy_union_jack",
+      "breakpoints": true
     }
   ]
 }
