@@ -38,11 +38,26 @@ P2 把「差勤規則 → 工時結算 → 薪資單」這條最核心的 IP 變
     結算把 UTC 打卡瞬間轉「商業本地牆鐘」餵引擎（與班表 HH:MM 對齊、跨時區決定性一致）。
 - [x] **F3 薪資單產生 + API**：以 `computePayslip` 為核心，HR 觸發月結，產 payslip（含 lines）
   落地 + GET API（HR 全租戶、員工本人）；租戶隔離 + RLS。
-- [ ] **F4 補休 / 特休 ledger**：compTime 加班轉補休時數入帳、特休給假/動用，餘額查詢；
+- [x] **F4 補休 / 特休 ledger**：compTime 加班轉補休時數入帳、特休給假/動用，餘額查詢；
   與 F1 的 `compTimeMinutes` 串接。
 
 ## 進度日誌
 （每完成一個功能在此追加一行：日期 / 功能 / commit / 測試結果）
+- 2026-06-24 / F4 補休 / 特休 ledger（接入 F4 簽核「最終核准」）/ ledger.test.ts 10 passed
+  （@hr/api 全套 118 passed、無回歸先前 108；全 workspace typecheck 5/5 0 error）。
+  DB：comp_time_ledger（tenant_id NOT NULL、employee_id、source_request_id→leave_requests、
+  hours_earned/hours_used numeric、note、expires_at、index(tenant,employee)）+ leave_balances
+  （unique(tenant,employee,leave_type,year)、entitled/used/deferred numeric）+ migration 0007_abandoned_wildside
+  + RLS 0008_rls_ledger（經 Management API 套用：兩表 relrowsecurity=true、各 *_self_or_hr_read SELECT +
+  *_hr_write ALL 共 4 條 policy 就緒）。Service：`services/ledger.ts` `applyApprovalEffects`，在
+  `requests.ts` decide() 最終核准（status→approved）點呼叫，try/catch 兜底（ledger 失敗不讓 approve 失敗）：
+  kind=leave+leaveTypeId→leave_balances.used += hours（無該年列則建 used=hours/entitled=0）；
+  kind=ot 且租戶 rule overtime weekday_ot.compTime=true（缺則任一 rule compTime）→ comp_time_ledger
+  記 hours_earned=hours；reject/cancel 不入帳。API：`GET /leave-balances?employeeId=&year=`（HR 全租戶／員工本人）、
+  `PUT /leave-balances`（HR；upsert 保留既有 used）、`GET /comp-time?employeeId=`（回 entries+結餘 Σearned−Σused）、
+  `POST /comp-time/adjust`（HR；手動加一筆 earned/used）。實測：特休 entitled 80→請 8h 核准→used 8 結餘 72；
+  OT 2h（compTime）核准→補休結餘 2；HR 手動 used 1→結餘 1；員工 PUT/adjust 皆 403、員工 GET 只看自己、
+  A 的 HR 看不到 B 的餘額/ledger。Supabase 測試資料 afterAll 清乾淨（0 殘留 ledger/balance/tenant/auth user）。
 - 2026-06-24 / F1 規則引擎 + 薪資引擎 + DSL / commit bb2fad1 / golden.test.ts 19 passed +
   rules-schema.test.ts 4 passed（@hr/rules 全套 23 passed、@hr/rules typecheck 0 error、
   全 workspace typecheck 5/5 successful）。三大黃金測試實算 = 期望：

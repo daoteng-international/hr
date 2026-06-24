@@ -50,6 +50,13 @@
       "when": 1782306553180,
       "tag": "0006_lumpy_union_jack",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782307354918,
+      "tag": "0007_abandoned_wildside",
+      "breakpoints": true
     }
   ]
 }

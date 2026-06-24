@@ -3,6 +3,7 @@ import { z } from "zod"
 import { requireAuth } from "../middleware/auth.js"
 import { requireTenant } from "../middleware/tenant.js"
 import { supabaseAdmin } from "../lib/supabase.js"
+import { applyApprovalEffects } from "../services/ledger.js"
 
 export const requestsRouter = Router()
 
@@ -310,10 +311,14 @@ async function decide(
       return
     }
 
-    // Load the request (tenant-scoped).
+    // Load the request (tenant-scoped). We pull the ledger-relevant fields too
+    // (kind/leave_type_id/hours/start_at/end_at/employee_id) so a final approval
+    // can post the comp-time / leave-balance effects without a second read.
     const { data: lr, error: lrErr } = await supabaseAdmin
       .from("leave_requests")
-      .select("id, status, current_step")
+      .select(
+        "id, status, current_step, employee_id, kind, leave_type_id, hours, start_at, end_at",
+      )
       .eq("tenant_id", tenantId)
       .eq("id", requestId)
       .maybeSingle()
@@ -417,6 +422,20 @@ async function decide(
       next(new Error(`POST /requests/${requestId}/approve (final): ${upReqErr.message}`))
       return
     }
+
+    // Final approval side-effects: debit leave balance / credit comp-time.
+    // Best-effort — applyApprovalEffects swallows its own errors so a ledger
+    // hiccup can never undo the approval the caller just succeeded at.
+    await applyApprovalEffects(supabaseAdmin, tenantId, {
+      id: lr.id as string,
+      employee_id: lr.employee_id as string,
+      kind: lr.kind as string,
+      leave_type_id: (lr.leave_type_id as string | null) ?? null,
+      hours: lr.hours as string | number | null,
+      start_at: lr.start_at as string,
+      end_at: lr.end_at as string,
+    })
+
     res.status(200).json({ status: "approved", currentStep: lr.current_step })
   } catch (err) {
     next(err)

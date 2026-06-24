@@ -132,8 +132,17 @@ beforeAll(async () => {
 }, 60_000)
 
 afterAll(async () => {
-  // approval_steps → leave_requests → approval_flows → leave_types → employees
-  // → tenants → auth users (respect FK order).
+  // comp_time_ledger / leave_balances → approval_steps → leave_requests →
+  // approval_flows → leave_types → employees → tenants → auth users (FK order).
+  // The ledger rows are written by approval side-effects (a final approval of a
+  // leave/OT request) and reference leave_requests/leave_types/employees, so
+  // they must be cleared before those parents.
+  for (const tid of createdTenantIds) {
+    await supabaseAdmin.from("comp_time_ledger").delete().eq("tenant_id", tid)
+  }
+  for (const tid of createdTenantIds) {
+    await supabaseAdmin.from("leave_balances").delete().eq("tenant_id", tid)
+  }
   for (const tid of createdTenantIds) {
     await supabaseAdmin.from("approval_steps").delete().eq("tenant_id", tid)
   }

@@ -17,6 +17,8 @@ import { ruleConfigRouter } from "./routes/rule-config.js"
 import { salaryRouter } from "./routes/salary.js"
 import { attendanceRouter } from "./routes/attendance.js"
 import { payrollRouter } from "./routes/payroll.js"
+import { leaveBalancesRouter } from "./routes/leave-balances.js"
+import { compTimeRouter } from "./routes/comp-time.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -56,6 +58,8 @@ app.use(ruleConfigRouter)
 app.use(salaryRouter)
 app.use(attendanceRouter)
 app.use(payrollRouter)
+app.use(leaveBalancesRouter)
+app.use(compTimeRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
