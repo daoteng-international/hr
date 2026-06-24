@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hr/rules": "*",
     "@supabase/supabase-js": "^2",
     "cors": "^2",
     "dotenv": "^16",

@@ -4,8 +4,8 @@ export {
   OvertimeWhenSchema,
   type RuleConfig,
   type OvertimeWhen,
-} from "./rules-schema";
+} from "./rules-schema.js";
 
-export * from "./types";
-export { computeAttendanceDay } from "./worktime-engine";
-export { computePayslip } from "./payroll-engine";
+export * from "./types.js";
+export { computeAttendanceDay } from "./worktime-engine.js";
+export { computePayslip } from "./payroll-engine.js";

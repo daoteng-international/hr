@@ -3,13 +3,13 @@
  * AttendanceDay(工時 / 遲到 / 加班 / 夜間,皆以分鐘計)。無 IO。
  */
 
-import type { RuleConfig } from "./rules-schema";
+import type { RuleConfig } from "./rules-schema.js";
 import type {
   AttendanceDay,
   DayContext,
   PunchPair,
   ShiftDef,
-} from "./types";
+} from "./types.js";
 
 const MS_PER_MIN = 60_000;
 const MIN_PER_DAY = 24 * 60;

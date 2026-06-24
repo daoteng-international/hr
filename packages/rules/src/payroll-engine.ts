@@ -6,7 +6,7 @@
  * lines 逐項加總必然等於 gross。
  */
 
-import type { OvertimeWhen, RuleConfig } from "./rules-schema";
+import type { OvertimeWhen, RuleConfig } from "./rules-schema.js";
 import type {
   AttendanceDay,
   DayType,
@@ -14,7 +14,7 @@ import type {
   PayslipBreakdown,
   PayslipLine,
   SalaryStructure,
-} from "./types";
+} from "./types.js";
 
 /** DayType → 加班規則 when 的對應 (閉集合)。 */
 const DAY_TYPE_TO_WHEN: Record<DayType, OvertimeWhen> = {

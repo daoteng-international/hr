@@ -13,6 +13,9 @@ import { approvalFlowsRouter } from "./routes/approval-flows.js"
 import { requestsRouter } from "./routes/requests.js"
 import { announcementsRouter } from "./routes/announcements.js"
 import { meRouter } from "./routes/me.js"
+import { ruleConfigRouter } from "./routes/rule-config.js"
+import { salaryRouter } from "./routes/salary.js"
+import { attendanceRouter } from "./routes/attendance.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -48,6 +51,9 @@ app.use(approvalFlowsRouter)
 app.use(requestsRouter)
 app.use(announcementsRouter)
 app.use(meRouter)
+app.use(ruleConfigRouter)
+app.use(salaryRouter)
+app.use(attendanceRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {

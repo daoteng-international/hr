@@ -22,8 +22,22 @@ P2 把「差勤規則 → 工時結算 → 薪資單」這條最核心的 IP 變
   - **三大特殊制度黃金測試**（`__tests__/golden.test.ts`）全綠。
   - 驗收：`npm -w @hr/rules test` 全綠、`npm -w @hr/rules run typecheck` 0 error、
     全 workspace `npm run typecheck` 0 error、不碰 DB/api。
-- [ ] **F2 工時結算批次**：把一個區間內的 schedules + punch_records 餵進 `computeAttendanceDay`，
-  批次產出 AttendanceDay 並落地（attendance_days 表），供薪資與報表使用。
+- [x] **F2 租戶規則設定 + 員工薪資結構 + 工時結算批次**：把 `packages/rules` 的工時引擎接到真實資料。
+  - **@hr/rules 變成可部署 workspace 套件**：`packages/rules/package.json` 加 `main`/`types`/`exports`
+    （→ `dist/index.js`+`dist/index.d.ts`）+ `build`（`tsc -p tsconfig.build.json`，新增該 build config，
+    rootDir src / outDir dist / declaration / 排除 __tests__）;`index.ts` re-export 補 `.js` 副檔名（ESM
+    runtime 解析必要）。`apps/api` 加相依 `@hr/rules:*`、root install 連 symlink、`apps/api/tsconfig.json`
+    清掉 `@hr/rules` path mapping 改走 node_modules dist（避免把套件 src 拉進 api rootDir）。
+    `railway.json` buildCommand 改 `build -w @hr/rules && build -w @hr/api`。
+  - **DB**：`rule_configs`/`salary_structures`/`attendance_days` 三表（皆 tenant_id NOT NULL、
+    salary 與 attendance 帶 unique(tenant,employee[,work_date])）+ migration 0005 + RLS 0006
+    （rule_configs 同租戶可讀/HR 寫；salary、attendance 本人或 HR 讀/HR 寫）。
+  - **API**：`/rule-config`（GET 預設範本 fallback、PUT 以 `parseRuleConfig` 驗證 DSL→版本化 active upsert）、
+    `/salary/:employeeId`（HR GET/PUT upsert）、`/attendance/settle`（HR 批次:配對 punch + schedule→shift +
+    租戶 rule_config → `computeAttendanceDay` → upsert attendance_days，冪等）、`/attendance-days`（HR 全租戶/員工本人）。
+    結算把 UTC 打卡瞬間轉「商業本地牆鐘」餵引擎（與班表 HH:MM 對齊、跨時區決定性一致）。
+- [ ] **F3 薪資單產生 + API**：以 `computePayslip` 為核心，HR 觸發月結，產 payslip（含 lines）
+  落地 + GET API（HR 全租戶、員工本人）；租戶隔離 + RLS。
 - [ ] **F3 薪資單產生 + API**：以 `computePayslip` 為核心，HR 觸發月結，產 payslip（含 lines）
   落地 + GET API（HR 全租戶、員工本人）；租戶隔離 + RLS。
 - [ ] **F4 補休 / 特休 ledger**：compTime 加班轉補休時數入帳、特休給假/動用，餘額查詢；
@@ -37,3 +51,11 @@ P2 把「差勤規則 → 工時結算 → 薪資單」這條最核心的 IP 變
   ① 全勤階梯 遲到 5→扣0/實發2000、6→600/1400、19→600/1400、20→2000/0；
   ② 例假日 8h×1.67 = 2672（不補休 compTime=0）、夜間 00:00–08:30 8h×2.0 = 3200；
   ③ 按出勤天數 22×1600 = 35200、某日 10h 超 8h 兩小時 → flat 2×200 = 400（覆蓋倍率）。
+- 2026-06-24 / F2 規則設定+薪資結構+工時結算（接入 @hr/rules 引擎）/ payroll-settle.test.ts 14 passed
+  （@hr/api 全套 101 passed、無回歸先前 87；全 workspace typecheck 5/5 0 error；@hr/rules 23、@hr/db 5 仍綠）。
+  **node dist smoke test（部署關鍵）**：`build -w @hr/rules && build -w @hr/api`（乾淨重建 exit 0）後
+  `PORT=4099 node apps/api/dist/index.js` → `curl /health` 回 `{"status":"ok"}`、process 存活、
+  **無 ERR_MODULE_NOT_FOUND**（@hr/rules 經 node_modules symlink→exports→dist/index.js 正確解析）。
+  migration 0005 + RLS 0006 經 Management API 套用:三表 relrowsecurity=true、6 條 policy（讀+寫）皆建立、
+  unique index 就緒。結算實算對引擎 = 期望:打卡 09:10→19:00／班表 09:00 start／break 60 →
+  worked 530、late 10、overtime 50、night 0。
