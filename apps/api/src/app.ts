@@ -22,6 +22,8 @@ import { compTimeRouter } from "./routes/comp-time.js"
 import { reportsRouter } from "./routes/reports.js"
 import { detectionRouter } from "./routes/detection.js"
 import { notificationsRouter } from "./routes/notifications.js"
+import { kpiTemplatesRouter } from "./routes/kpi-templates.js"
+import { kpiReviewsRouter } from "./routes/kpi-reviews.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -66,6 +68,8 @@ app.use(compTimeRouter)
 app.use(reportsRouter)
 app.use(detectionRouter)
 app.use(notificationsRouter)
+app.use(kpiTemplatesRouter)
+app.use(kpiReviewsRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {

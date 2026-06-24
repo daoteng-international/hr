@@ -20,7 +20,15 @@ P3 把已落地的差勤/薪資/請假/組織資料變成「可決策的彙整�
   - `GET /reports/headcount`：員工總數 + 依 status / dept(dept_id，null bucket) / role 計數。
   - `apps/api/src/lib/csv.ts`：`toCsv(rows, columns:{key,label}[])` — 逗號/引號/換行跳脫（`"`→`""`、
     含特殊字元才加引號）、CRLF 換行、前綴 UTF-8 BOM（Excel 正確顯示中文）。
-- [ ] **F2 考核 KPI**：週期化目標設定 / 評分 / 主管覆核 / 結果查詢（待規劃）。
+- [x] **F2 考核 KPI**（本次）：考核表（kpi_templates，加權題項）+ 指派/評分/提交/定版（kpi_reviews 狀態機 draft→submitted→finalized）：
+  - 新 schema `packages/db/src/schema/kpi-templates.ts`、`kpi-reviews.ts`（皆帶 `tenant_id NOT NULL`；
+    kpi_reviews `unique(tenant_id, employee_id, template_id, period)`）→ migration `0009_empty_iron_monger.sql`、
+    RLS `0010_rls_kpi.sql`（templates=GROUP A 同租戶讀/HR 寫；reviews=HR 全租戶／受評者看自己／評核者看被指派的，HR 可寫）。
+  - 新 `apps/api/src/routes/kpi-templates.ts`（讀 `requireTenant`、寫 `requireHrAdmin`）GET/POST/PATCH/DELETE。
+  - 新 `apps/api/src/routes/kpi-reviews.ts`：POST 指派（HR，建 draft）；GET 角色可見性（HR 全租戶／評核者看指派／受評者僅 finalized）；
+    PATCH 評分（評核者或 HR；用 template.items 的 weight 算 `total_score = Σ(score/maxScore × weight)`，四捨五入 2 位；finalized→409）；
+    submit（評核者 draft→submitted）；finalize（HR submitted→finalized 終態）。皆 `.eq("tenant_id", …)` 為承重防線。
+  - `apps/api/src/app.ts` 掛載 kpiTemplatesRouter、kpiReviewsRouter。
 - [ ] **F3 報表前端頁**：將 F1 各報表接成 HR 後台頁面（篩選 + 表格 + 下載 CSV）。
 
 ## 進度日誌
@@ -40,3 +48,17 @@ P3 把已落地的差勤/薪資/請假/組織資料變成「可決策的彙整�
   CSV：回含 BOM（首字 U+FEFF）+ 表頭 + 資料列；含逗號的中文姓名（如「李, 大華」）正確以雙引號包裹。
   Supabase 測試資料 afterAll 依 FK 安全序清乾淨（payslips→attendance_days→leave_requests→employees→
   departments→tenants→auth users，0 殘留）。
+- 2026-06-24 / F2 考核 KPI（templates + 指派/評分/提交/定版，加權總分）/ kpi.test.ts 15 passed
+  （@hr/api 全套無回歸；全 workspace typecheck 5/5 0 error）。
+  改檔：新增 `packages/db/src/schema/kpi-templates.ts`、`kpi-reviews.ts`（更新 schema/index.ts barrel）、
+  drizzle migration `packages/db/migrations/0009_empty_iron_monger.sql`、RLS `packages/db/sql/0010_rls_kpi.sql`、
+  `apps/api/src/routes/kpi-templates.ts`、`apps/api/src/routes/kpi-reviews.ts`、`apps/api/src/__tests__/kpi.test.ts`，
+  `apps/api/src/app.ts` 掛載兩個 router。
+  migration + RLS 經 Supabase Management API 套用（ref xpbxfeslajiwkmfigjul）；事後查 pg_class.relrowsecurity 兩表皆 true、
+  pg_policies 四條到位（kpi_templates_tenant_read/kpi_templates_hr_write、kpi_read/kpi_hr_write）。
+  加權法：`total_score = Σ(score/maxScore × weight)`（四捨五入 2 位）；
+  實測 quality 8/10×60 + attitude 9/10×40 = 48+36 = 84（期望 84 = 實算 84，斷言通過）。
+  權限/狀態：員工建範本→403、員工指派→403、非評核者非 HR 評分→403、finalized 後 PATCH→409；
+  draft→submitted（評核者）→finalized（HR）。
+  可見性：評核者看得到被指派的；受評者 finalize 前看不到、finalize 後看得到自己；無關第三人（emp2）看不到；A 的 HR 看不到 B。
+  Supabase 測試資料 afterAll 依 FK 安全序清乾淨（kpi_reviews→kpi_templates→employees→tenants→auth users，0 殘留）。
