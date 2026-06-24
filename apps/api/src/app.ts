@@ -20,6 +20,8 @@ import { payrollRouter } from "./routes/payroll.js"
 import { leaveBalancesRouter } from "./routes/leave-balances.js"
 import { compTimeRouter } from "./routes/comp-time.js"
 import { reportsRouter } from "./routes/reports.js"
+import { detectionRouter } from "./routes/detection.js"
+import { notificationsRouter } from "./routes/notifications.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -62,6 +64,8 @@ app.use(payrollRouter)
 app.use(leaveBalancesRouter)
 app.use(compTimeRouter)
 app.use(reportsRouter)
+app.use(detectionRouter)
+app.use(notificationsRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
