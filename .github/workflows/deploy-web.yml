@@ -2,7 +2,10 @@ name: Deploy Web to Vercel
 
 # Deploys apps/web to Vercel via the CLI (works with a PRIVATE repo, unlike
 # Vercel's native Git integration which needs a Pro plan for private org repos).
-# Vercel builds remotely using the project's Root Directory (apps/web) setting.
+# Uses the prebuilt flow (pull settings -> build on the runner -> deploy
+# --prebuilt) so the Next.js framework is detected correctly. The plain
+# `vercel deploy` remote build mis-detected the monorepo as a static site
+# ("No Output Directory named public").
 on:
   push:
     branches: [main]
@@ -27,5 +30,10 @@ jobs:
           node-version: "22"
       - name: Install Vercel CLI
         run: npm i -g vercel
-      - name: Deploy Web to Vercel (production)
-        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build & Deploy to Vercel (production, prebuilt)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
