@@ -19,6 +19,7 @@ import { attendanceRouter } from "./routes/attendance.js"
 import { payrollRouter } from "./routes/payroll.js"
 import { leaveBalancesRouter } from "./routes/leave-balances.js"
 import { compTimeRouter } from "./routes/comp-time.js"
+import { reportsRouter } from "./routes/reports.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -60,6 +61,7 @@ app.use(attendanceRouter)
 app.use(payrollRouter)
 app.use(leaveBalancesRouter)
 app.use(compTimeRouter)
+app.use(reportsRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
