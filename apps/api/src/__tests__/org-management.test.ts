@@ -389,3 +389,46 @@ describe("F1 cross-tenant — A cannot mutate B's rows", () => {
     expect(data?.id).toBe(bDeptId)
   })
 })
+
+describe("F1 公司組織圖 — GET /org-chart builds a nested tree", () => {
+  let parentId: string
+  let childId: string
+
+  it("HR creates a parent dept and a child dept under it", async () => {
+    const parent = await request(app)
+      .post("/departments")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ name: `Org Parent ${stamp}` })
+    expect(parent.status).toBe(201)
+    parentId = parent.body.id
+
+    const child = await request(app)
+      .post("/departments")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ name: `Org Child ${stamp}`, parentId })
+    expect(child.status).toBe(201)
+    childId = child.body.id
+  })
+
+  it("GET /org-chart nests the child under the parent (tenant-scoped)", async () => {
+    const res = await request(app)
+      .get("/org-chart")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+    expect(res.status).toBe(200)
+
+    const tree = res.body.tree as Array<{ id: string; children: { id: string }[] }>
+    const parentNode = tree.find((n) => n.id === parentId)
+    expect(parentNode).toBeTruthy()
+    expect(parentNode!.children.some((c) => c.id === childId)).toBe(true)
+    // The child is not also a root.
+    expect(tree.some((n) => n.id === childId)).toBe(false)
+  })
+
+  it("a non-HR employee may also read the org chart → 200", async () => {
+    const res = await request(app)
+      .get("/org-chart")
+      .set("Authorization", `Bearer ${aEmployeeToken}`)
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body.tree)).toBe(true)
+  })
+})

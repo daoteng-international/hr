@@ -55,6 +55,69 @@ departmentsRouter.get(
   },
 )
 
+// A department node with its nested children, as returned by GET /org-chart.
+interface OrgNode {
+  id: string
+  name: string
+  managerEmpId: string | null
+  children: OrgNode[]
+}
+
+/**
+ * GET /org-chart — the tenant's departments as a nested tree (公司組織圖).
+ *
+ * Readable by any authenticated member of the tenant (not HR-only) so employees
+ * can view the org chart. Builds the tree in memory from the flat list: a node
+ * whose parent_id is null — or points at a department outside this tenant / a
+ * missing row — is treated as a root, so a dangling parent can never hide a
+ * subtree. Self-parenting rows are also treated as roots.
+ */
+departmentsRouter.get(
+  "/org-chart",
+  requireAuth,
+  requireTenant,
+  async (_req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("departments")
+        .select("id, parent_id, name, manager_emp_id")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        next(new Error(`GET /org-chart: ${error.message}`))
+        return
+      }
+
+      const rows = data ?? []
+      const nodes = new Map<string, OrgNode>()
+      for (const r of rows) {
+        nodes.set(r.id as string, {
+          id: r.id as string,
+          name: r.name as string,
+          managerEmpId: (r.manager_emp_id as string | null) ?? null,
+          children: [],
+        })
+      }
+
+      const roots: OrgNode[] = []
+      for (const r of rows) {
+        const node = nodes.get(r.id as string)!
+        const parentId = r.parent_id as string | null
+        const parent = parentId ? nodes.get(parentId) : undefined
+        // Self-parenting or a parent outside this tenant → treat as a root.
+        if (parent && parentId !== r.id) parent.children.push(node)
+        else roots.push(node)
+      }
+
+      res.status(200).json({ tree: roots })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 // POST /departments — create a department under this tenant.
 departmentsRouter.post(
   "/departments",

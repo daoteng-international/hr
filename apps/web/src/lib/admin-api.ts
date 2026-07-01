@@ -327,6 +327,19 @@ export function deleteLeaveType(id: string) {
   return apiFetch<{ id: string }>(`/leave-types/${id}`, { method: "DELETE" });
 }
 
+/* ------------------------------------------------------------- org-chart --- */
+
+export interface OrgNode {
+  id: string;
+  name: string;
+  managerEmpId: string | null;
+  children: OrgNode[];
+}
+
+export function getOrgChart() {
+  return apiFetch<{ tree: OrgNode[] }>("/org-chart");
+}
+
 /* ------------------------------------------------------ approval-flows ----- */
 
 export interface ApprovalFlow {

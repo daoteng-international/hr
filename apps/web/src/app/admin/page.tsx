@@ -8,6 +8,7 @@ import { getRequests } from "@/lib/admin-api";
 const LINKS: { href: string; label: string; desc: string }[] = [
   { href: "/admin/employees", label: "員工", desc: "邀請、編輯、停用員工" },
   { href: "/admin/departments", label: "部門", desc: "組織架構維護" },
+  { href: "/admin/org-chart", label: "公司組織圖", desc: "部門階層樹狀圖" },
   { href: "/admin/shifts", label: "班別", desc: "上下班時間與夜班" },
   { href: "/admin/schedules", label: "排班", desc: "指派員工班別" },
   { href: "/admin/approvals", label: "簽核", desc: "待處理的請假／加班／補卡" },
