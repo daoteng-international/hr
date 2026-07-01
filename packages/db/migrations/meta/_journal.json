@@ -78,6 +78,13 @@
       "when": 1782892510179,
       "tag": "0010_puzzling_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782894135015,
+      "tag": "0011_clear_maelstrom",
+      "breakpoints": true
     }
   ]
 }

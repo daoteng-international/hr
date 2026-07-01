@@ -340,6 +340,52 @@ export function getOrgChart() {
   return apiFetch<{ tree: OrgNode[] }>("/org-chart");
 }
 
+/* ------------------------------------------------------------ onboarding --- */
+
+export interface Onboarding {
+  id: string;
+  tenant_id: string;
+  name: string;
+  dept_id: string | null;
+  manager_emp_id: string | null;
+  employment_type: string;
+  identity_type: string | null;
+  region: string | null;
+  report_date: string | null;
+  status: "pending" | "completed";
+  employee_id: string | null;
+  created_at: string;
+}
+
+export function getOnboardings(status?: "pending" | "completed") {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<{ onboardings: Onboarding[] }>(`/onboardings${qs}`);
+}
+
+export function createOnboarding(body: {
+  name: string;
+  deptId?: string | null;
+  identityType?: string | null;
+  region?: string | null;
+  reportDate?: string | null;
+}) {
+  return apiFetch<{ id: string }>("/onboardings", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function completeOnboarding(id: string) {
+  return apiFetch<{ id: string; status: string; employeeId: string }>(
+    `/onboardings/${id}/complete`,
+    { method: "POST" },
+  );
+}
+
+export function deleteOnboarding(id: string) {
+  return apiFetch<{ id: string }>(`/onboardings/${id}`, { method: "DELETE" });
+}
+
 /* ------------------------------------------------------ approval-flows ----- */
 
 export interface ApprovalFlow {
