@@ -473,6 +473,55 @@ export function updateCandidate(
   });
 }
 
+/* ------------------------------------------------- payroll tax / 法規 --- */
+
+export interface NonEmployeeIncome {
+  id: string;
+  payee_name: string;
+  income_type: string | null;
+  amount: string;
+  tax_withheld: string;
+  supplementary_premium: string;
+  pay_date: string | null;
+  created_at: string;
+}
+
+export function importSalaryAdjustments(csv: string) {
+  return apiFetch<{ count: number; errors: { line: number; error: string }[] }>(
+    "/salary-adjustments/import",
+    { method: "POST", body: JSON.stringify({ csv }) },
+  );
+}
+
+export function getNonEmployeeIncome() {
+  return apiFetch<{ "non-employee-income": NonEmployeeIncome[] }>("/non-employee-income");
+}
+
+export function createNonEmployeeIncome(body: {
+  payeeName: string;
+  incomeType?: string;
+  amount: number;
+  withholdRate?: number;
+  payDate?: string;
+}) {
+  return apiFetch<{ id: string; taxWithheld: number; supplementaryPremium: number }>(
+    "/non-employee-income",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export type TaxComputeBody =
+  | { kind: "bonus_premium"; monthlyInsuredSalary: number; cumulativeBonusBefore?: number; thisBonus: number; rate?: number }
+  | { kind: "nhi_premium"; insuredSalary: number; dependents?: number; rate: number; employeeShareRatio: number }
+  | { kind: "withholding"; monthlyPayment: number; rate?: number; threshold?: number };
+
+export function computeTax(body: TaxComputeBody) {
+  return apiFetch<{ premium?: number; withholding?: number }>("/payroll/tax/compute", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 /* ------------------------------------------------------ approval-flows ----- */
 
 export interface ApprovalFlow {

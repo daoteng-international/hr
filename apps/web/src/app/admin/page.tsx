@@ -16,6 +16,7 @@ const LINKS: { href: string; label: string; desc: string }[] = [
   { href: "/admin/announcements", label: "公佈欄", desc: "發佈內部公告" },
   { href: "/admin/leave-types", label: "假別與簽核流程", desc: "假別與各類別簽核者" },
   { href: "/admin/recruitment", label: "招募", desc: "職缺需求單與人才庫" },
+  { href: "/admin/payroll-tax", label: "薪資法規", desc: "批次調薪、非員工所得、補充保費" },
 ];
 
 export default function AdminOverview() {

@@ -38,16 +38,13 @@
 - Web：Admin `/admin/recruitment`（職缺 + 人才庫 pipeline）+ 首頁入口。
 - 暫略：需求單/錄用單多關審核流（可後續複用 approval pipeline）、面試行事曆 UI、招募報表中心。
 
-## 階段 ④ 台灣薪資法規（法規最深，需最多驗證）
+## 階段 ④ 台灣薪資法規 — ✅ 完成、測試綠
 
-- **健保眷屬投保**：`nhi_dependents`（眷屬投保 + 眷口數 → 影響健保費）
-- **所得稅扶養親屬**：`income_tax_dependents`（免稅額計算）
-- **批次調薪**：`salary_adjustments` 批次匯入 + 生效日
-- **所得稅作業（扣繳）**：累進 / 5% 就源扣繳、扣繳憑單彙總（各類所得格式）
-- **二代健保補充保費**：獎金逾投保級距 4 倍、兼職、非員工所得等六類補充保費計算
-- **非員工所得**：`non_employee_income`（講師費、稿費等）
-
-> ④ 的計算邏輯應放進 `packages/rules`（沿用 payroll-engine + golden tests），API 只做 orchestration。
+- **計算核心** `packages/rules/tw-tax.ts`（純函式 + 7 golden tests）：`bonusSupplementaryPremium`（高額獎金逾投保 4 倍 → 補充保費）、`otherIncomeSupplementaryPremium`（其他類所得單筆 ≥20,000 計費）、`salaryWithholdingFixedRate`（薪資定率扣繳）、`nonResidentWithholding`、`nhiEmployeePremium`（本人+眷屬，眷口 3 封頂）。**費率/門檻皆參數化**（不寫死會逐年變動的法定值）。
+- **資料表**（migration 0014 + RLS 0014）：`nhi_dependents`(健保眷屬)、`income_tax_dependents`(扶養親屬)（本人或 HR）、`salary_adjustments`(批次調薪)、`non_employee_income`(非員工所得)（HR-only）。
+- **路由** `payroll-tax.ts`：四表 HR-CRUD；`POST /salary-adjustments/import`（批次調薪 CSV）；`POST /non-employee-income` 建立時自動算扣繳+補充保費；`POST /payroll/tax/compute`（bonus_premium/nhi_premium/withholding 薄包裝 rules）。
+- **Web**：Admin `/admin/payroll-tax`（批次調薪匯入、非員工所得、補充保費試算）+ 首頁入口。
+- 暫略：所得稅扣繳憑單彙總報表（各類所得格式）、查表法扣繳。
 
 ---
 
