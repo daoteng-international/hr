@@ -20,6 +20,7 @@ const KINDS: { kind: RequestKind; label: string }[] = [
   { kind: "leave", label: "請假" },
   { kind: "ot", label: "加班" },
   { kind: "fix_punch", label: "補卡" },
+  { kind: "business_trip", label: "公出/出差" },
 ];
 
 export default function LeaveTypesPage() {

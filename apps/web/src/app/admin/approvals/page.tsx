@@ -16,6 +16,7 @@ const KIND_LABEL: Record<RequestKind, string> = {
   leave: "請假",
   ot: "加班",
   fix_punch: "補卡",
+  business_trip: "公出/出差",
 };
 
 function fmt(iso: string): string {

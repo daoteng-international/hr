@@ -211,7 +211,7 @@ export function assignSchedule(body: {
 /* ------------------------------------------------------------ requests ----- */
 
 export type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
-export type RequestKind = "leave" | "ot" | "fix_punch";
+export type RequestKind = "leave" | "ot" | "fix_punch" | "business_trip";
 
 export interface LeaveRequest {
   id: string;

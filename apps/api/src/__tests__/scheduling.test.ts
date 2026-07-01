@@ -406,3 +406,146 @@ describe("F2 cross-tenant — A cannot mutate B's shift", () => {
     expect(data?.id).toBe(bShiftId)
   })
 })
+
+describe("F2 班表匯入 — HR bulk-imports a roster from CSV", () => {
+  it("POST /schedules/import upserts every valid row → 201 { count, errors:[] }", async () => {
+    const csv = [
+      "employeeId,workDate,status",
+      `${aEmployeeId},2026-07-10,scheduled`,
+      `${aEmployeeId},2026-07-11,day_off`,
+    ].join("\n")
+
+    const res = await request(app)
+      .post("/schedules/import")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ csv })
+
+    expect(res.status).toBe(201)
+    expect(res.body.count).toBe(2)
+    expect(res.body.errors).toEqual([])
+
+    const { count } = await supabaseAdmin
+      .from("schedules")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", A.tenantId)
+      .eq("employee_id", aEmployeeId)
+      .in("work_date", ["2026-07-10", "2026-07-11"])
+    expect(count).toBe(2)
+  })
+
+  it("a bad row is reported per-line and skipped; valid rows still import", async () => {
+    const csv = [
+      "employeeId,workDate",
+      `${aEmployeeId},2026-07-12`,
+      `${aEmployeeId},NOT-A-DATE`,
+    ].join("\n")
+
+    const res = await request(app)
+      .post("/schedules/import")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ csv })
+
+    expect(res.status).toBe(201)
+    expect(res.body.count).toBe(1)
+    expect(res.body.errors.length).toBe(1)
+    expect(res.body.errors[0].line).toBe(3)
+  })
+
+  it("a CSV with no valid rows → 400 no_valid_rows", async () => {
+    const csv = ["employeeId,workDate", `${aEmployeeId},NOPE`].join("\n")
+    const res = await request(app)
+      .post("/schedules/import")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ csv })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe("no_valid_rows")
+  })
+
+  it("a non-HR employee cannot import → 403", async () => {
+    const csv = ["employeeId,workDate", `${aEmployeeId},2026-07-13`].join("\n")
+    const res = await request(app)
+      .post("/schedules/import")
+      .set("Authorization", `Bearer ${aEmployeeToken}`)
+      .send({ csv })
+    expect(res.status).toBe(403)
+  })
+})
+
+describe("F2 班表審核 — employee acknowledges / disputes their roster", () => {
+  let myScheduleId: string
+  let otherScheduleId: string
+
+  it("setup: HR assigns a row to the employee and to the other employee", async () => {
+    const mine = await request(app)
+      .post("/schedules")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ employeeId: aEmployeeId, workDate: "2026-07-20" })
+    expect(mine.status).toBe(201)
+    myScheduleId = mine.body.ids[0]
+
+    const other = await request(app)
+      .post("/schedules")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ employeeId: aOtherEmployeeId, workDate: "2026-07-20" })
+    expect(other.status).toBe(201)
+    otherScheduleId = other.body.ids[0]
+  })
+
+  it("the assigned employee acknowledges → status 'confirmed'", async () => {
+    const res = await request(app)
+      .post(`/schedules/${myScheduleId}/acknowledge`)
+      .set("Authorization", `Bearer ${aEmployeeToken}`)
+      .send({})
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe("confirmed")
+
+    const { data } = await supabaseAdmin
+      .from("schedules")
+      .select("status")
+      .eq("id", myScheduleId)
+      .single()
+    expect(data?.status).toBe("confirmed")
+  })
+
+  it("the assigned employee disputes → status 'disputed'", async () => {
+    const res = await request(app)
+      .post(`/schedules/${myScheduleId}/dispute`)
+      .set("Authorization", `Bearer ${aEmployeeToken}`)
+      .send({})
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe("disputed")
+  })
+
+  it("an employee cannot review someone else's schedule → 403", async () => {
+    const res = await request(app)
+      .post(`/schedules/${otherScheduleId}/acknowledge`)
+      .set("Authorization", `Bearer ${aEmployeeToken}`)
+      .send({})
+    expect(res.status).toBe(403)
+
+    // The other employee's row is untouched.
+    const { data } = await supabaseAdmin
+      .from("schedules")
+      .select("status")
+      .eq("id", otherScheduleId)
+      .single()
+    expect(data?.status).toBe("scheduled")
+  })
+
+  it("HR may acknowledge any row in the tenant", async () => {
+    const res = await request(app)
+      .post(`/schedules/${otherScheduleId}/acknowledge`)
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({})
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe("confirmed")
+  })
+
+  it("reviewing a non-existent schedule → 404", async () => {
+    const res = await request(app)
+      .post(`/schedules/00000000-0000-0000-0000-000000000000/acknowledge`)
+      .set("Authorization", `Bearer ${aEmployeeToken}`)
+      .send({})
+    expect(res.status).toBe(404)
+  })
+})

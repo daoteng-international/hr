@@ -7,8 +7,8 @@ import { supabaseAdmin } from "../lib/supabase.js"
 
 export const approvalFlowsRouter = Router()
 
-// The three request kinds an approval flow can apply to.
-const kindSchema = z.enum(["leave", "ot", "fix_punch"])
+// The request kinds an approval flow can apply to (mirrors KINDS in requests.ts).
+const kindSchema = z.enum(["leave", "ot", "fix_punch", "business_trip"])
 
 const putSchema = z.object({
   // Ordered list of approver employee ids; [] means "no flow → fall back to HR".

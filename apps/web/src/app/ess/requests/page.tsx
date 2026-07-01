@@ -22,6 +22,7 @@ const KIND_LABEL: Record<RequestKind, string> = {
   leave: "請假",
   ot: "加班",
   fix_punch: "補卡",
+  business_trip: "公出/出差",
 };
 
 const STATUS_STYLE: Record<RequestStatus, string> = {
@@ -167,6 +168,7 @@ function RequestsView() {
                 <option value="leave">請假</option>
                 <option value="ot">加班</option>
                 <option value="fix_punch">補卡</option>
+                <option value="business_trip">公出/出差</option>
               </select>
             </div>
 

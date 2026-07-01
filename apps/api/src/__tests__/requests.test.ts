@@ -531,6 +531,57 @@ describe("F4 GET /requests — role-based visibility", () => {
   })
 })
 
+describe("F4 公出/出差 — business_trip rides the same approval pipeline", () => {
+  it("emp1 files a business_trip; mgr approves it through to approved", async () => {
+    // Single-step chain [mgr].
+    await request(app)
+      .put("/approval-flows/business_trip")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ approverEmpIds: [mgrId] })
+
+    const filed = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "business_trip",
+        startAt: "2027-01-05T01:00:00.000Z",
+        endAt: "2027-01-05T09:00:00.000Z",
+        reason: "client visit",
+      })
+    expect(filed.status).toBe(201)
+    const reqId = filed.body.requestId as string
+    const steps = filed.body.steps as Array<{ approverEmpId: string }>
+    expect(steps.map((s) => s.approverEmpId)).toEqual([mgrId])
+
+    const res = await request(app)
+      .post(`/requests/${reqId}/approve`)
+      .set("Authorization", `Bearer ${mgrToken}`)
+      .send({ comment: "go" })
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe("approved")
+
+    const { data } = await supabaseAdmin
+      .from("leave_requests")
+      .select("kind, status")
+      .eq("id", reqId)
+      .single()
+    expect(data?.kind).toBe("business_trip")
+    expect(data?.status).toBe("approved")
+  })
+
+  it("an unknown kind is still rejected → 400", async () => {
+    const res = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "vacation_on_mars",
+        startAt: "2027-02-01T01:00:00.000Z",
+        endAt: "2027-02-01T09:00:00.000Z",
+      })
+    expect(res.status).toBe(400)
+  })
+})
+
 describe("F4 cross-tenant isolation", () => {
   it("A's HR can never see any of B's requests", async () => {
     // Seed a request in tenant B directly (rows only — no token needed).

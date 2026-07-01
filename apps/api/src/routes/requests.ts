@@ -7,7 +7,11 @@ import { applyApprovalEffects } from "../services/ledger.js"
 
 export const requestsRouter = Router()
 
-const KINDS = ["leave", "ot", "fix_punch"] as const
+// Request kinds the workflow supports. 'business_trip' (公出/出差) rides the same
+// file → multi-step approval pipeline as the others; it carries no ledger effect
+// (applyApprovalEffects only touches 'leave'/'ot'), so a final approval simply
+// marks the trip authorised.
+const KINDS = ["leave", "ot", "fix_punch", "business_trip"] as const
 
 const createSchema = z.object({
   kind: z.enum(KINDS),
