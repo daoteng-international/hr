@@ -34,6 +34,7 @@ export default function LeaveTypesPage() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [paid, setPaid] = useState(true);
+  const [special, setSpecial] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -41,6 +42,7 @@ export default function LeaveTypesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPaid, setEditPaid] = useState(true);
+  const [editSpecial, setEditSpecial] = useState(false);
 
   // approval flows: kind -> selected approver emp ids (ordered by employee list)
   const [flowDraft, setFlowDraft] = useState<Record<string, string[]>>({});
@@ -87,10 +89,11 @@ export default function LeaveTypesPage() {
     }
     setSubmitting(true);
     try {
-      await createLeaveType({ code: code.trim(), name: name.trim(), paid });
+      await createLeaveType({ code: code.trim(), name: name.trim(), paid, special });
       setCode("");
       setName("");
       setPaid(true);
+      setSpecial(false);
       await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "新增失敗（代碼可能重複）");
@@ -102,7 +105,7 @@ export default function LeaveTypesPage() {
   async function saveEdit(id: string) {
     if (!editName.trim()) return;
     try {
-      await updateLeaveType(id, { name: editName.trim(), paid: editPaid });
+      await updateLeaveType(id, { name: editName.trim(), paid: editPaid, special: editSpecial });
       setEditingId(null);
       await load();
     } catch (err) {
@@ -156,10 +159,14 @@ export default function LeaveTypesPage() {
               <label className={labelCls}>名稱</label>
               <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="特休" />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-4">
               <label className="flex items-center gap-2 pb-2 text-sm text-gray-700">
                 <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
                 支薪
+              </label>
+              <label className="flex items-center gap-2 pb-2 text-sm text-gray-700">
+                <input type="checkbox" checked={special} onChange={(e) => setSpecial(e.target.checked)} />
+                特殊假別
               </label>
             </div>
           </div>
@@ -197,6 +204,14 @@ export default function LeaveTypesPage() {
                         />
                         支薪
                       </label>
+                      <label className="flex shrink-0 items-center gap-1 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={editSpecial}
+                          onChange={(e) => setEditSpecial(e.target.checked)}
+                        />
+                        特殊假別
+                      </label>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <button onClick={() => saveEdit(lt.id)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
@@ -217,6 +232,9 @@ export default function LeaveTypesPage() {
                       ) : (
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">不支薪</span>
                       )}
+                      {lt.special && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">特殊假別</span>
+                      )}
                     </div>
                     <div className="flex shrink-0 gap-3">
                       <button
@@ -224,6 +242,7 @@ export default function LeaveTypesPage() {
                           setEditingId(lt.id);
                           setEditName(lt.name);
                           setEditPaid(lt.paid);
+                          setEditSpecial(lt.special);
                         }}
                         className="text-sm text-gray-600 hover:underline"
                       >

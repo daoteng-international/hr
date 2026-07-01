@@ -196,6 +196,32 @@ describe("F4 leave_types — HR manages the catalogue", () => {
       .send({ code: "sick", name: "病假", paid: false })
     expect(res.status).toBe(403)
   })
+
+  it("HR creates a 特殊假別 (special=true); ?special=true lists it, ?special=false excludes it", async () => {
+    const created = await request(app)
+      .post("/leave-types")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ code: "menstrual", name: "生理假", paid: false, special: true })
+    expect(created.status).toBe(201)
+    const specialId = created.body.id as string
+
+    const special = await request(app)
+      .get("/leave-types?special=true")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+    expect(special.status).toBe(200)
+    const specials = special.body.leaveTypes as Array<{ id: string; special: boolean }>
+    expect(specials.some((t) => t.id === specialId)).toBe(true)
+    expect(specials.every((t) => t.special === true)).toBe(true)
+
+    const ordinary = await request(app)
+      .get("/leave-types?special=false")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+    expect(ordinary.status).toBe(200)
+    const ordinaries = ordinary.body.leaveTypes as Array<{ id: string; special: boolean }>
+    expect(ordinaries.some((t) => t.id === specialId)).toBe(false)
+    // The earlier 'annual' type (special defaults false) is ordinary.
+    expect(ordinaries.some((t) => t.id === annualTypeId)).toBe(true)
+  })
 })
 
 describe("F4 approval_flows — HR configures approver chains", () => {

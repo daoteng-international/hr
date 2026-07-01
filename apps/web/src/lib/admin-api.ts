@@ -293,6 +293,7 @@ export interface LeaveType {
   code: string;
   name: string;
   paid: boolean;
+  special: boolean;
   created_at: string;
 }
 
@@ -300,7 +301,12 @@ export function getLeaveTypes() {
   return apiFetch<{ leaveTypes: LeaveType[] }>("/leave-types");
 }
 
-export function createLeaveType(body: { code: string; name: string; paid?: boolean }) {
+export function createLeaveType(body: {
+  code: string;
+  name: string;
+  paid?: boolean;
+  special?: boolean;
+}) {
   return apiFetch<{ id: string }>("/leave-types", {
     method: "POST",
     body: JSON.stringify(body),
@@ -309,7 +315,7 @@ export function createLeaveType(body: { code: string; name: string; paid?: boole
 
 export function updateLeaveType(
   id: string,
-  body: { code?: string; name?: string; paid?: boolean },
+  body: { code?: string; name?: string; paid?: boolean; special?: boolean },
 ) {
   return apiFetch<{ id: string }>(`/leave-types/${id}`, {
     method: "PATCH",

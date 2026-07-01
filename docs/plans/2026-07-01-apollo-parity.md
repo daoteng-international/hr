@@ -23,7 +23,7 @@
 | 公出/出差 business_trip | `requests.ts` KINDS 加 `business_trip`；approval-flows 同步；ledger 無副作用（no-op）；前端 ESS/Admin 下拉 + 標籤 | 否 | ✅ 完成、測試綠 |
 | 班表審核 | `schedules.ts` 新增 `POST /schedules/:id/acknowledge`（→confirmed）、`/dispute`（→disputed）；本人或 HR 可審；複用既有 `status` 欄位 | 否 | ✅ 完成、測試綠 |
 | 班表匯入 | `schedules.ts` 新增 `POST /schedules/import`（HR-only，CSV 解析，逐列驗證，複用 upsert） | 否 | ✅ 完成、測試綠 |
-| 特殊假別 | `leave_types` 加 `special boolean default false`；`GET /leave-types?special=` 篩選；前端「特殊假別申請」入口 | 是（新增欄位，additive） | ⏳ 待做（需 prod migration，待確認） |
+| 特殊假別 | `leave_types` 加 `special boolean default false`（migration 0010，已套用 HR-Ai）；`GET /leave-types?special=` 篩選；Admin 假別頁 特殊假別 開關+標籤 | 是（新增欄位，additive，已套用） | ✅ 完成、測試綠 |
 
 ## 階段 ② 人事主檔強化
 

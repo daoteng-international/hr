@@ -71,6 +71,13 @@
       "when": 1782313475368,
       "tag": "0009_empty_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782892510179,
+      "tag": "0010_puzzling_sentry",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,7 @@ const createSchema = z.object({
   code: z.string().trim().min(1, "code is required"),
   name: z.string().trim().min(1, "name is required"),
   paid: z.boolean().optional(),
+  special: z.boolean().optional(),
 })
 
 // PATCH allows any subset; at least one field must be present.
@@ -19,10 +20,19 @@ const updateSchema = z
     code: z.string().trim().min(1).optional(),
     name: z.string().trim().min(1).optional(),
     paid: z.boolean().optional(),
+    special: z.boolean().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, { message: "no fields to update" })
 
-const SELECT_COLS = "id, tenant_id, code, name, paid, created_at"
+// GET query — optional ?special=true|false narrows to 特殊假別 (or ordinary leave).
+const listQuerySchema = z.object({
+  special: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+})
+
+const SELECT_COLS = "id, tenant_id, code, name, paid, special, created_at"
 
 /**
  * Leave-type routes are HR-admin-only and tenant-scoped. The tenant boundary is
@@ -38,14 +48,21 @@ leaveTypesRouter.get(
   "/leave-types",
   requireAuth,
   requireTenant,
-  async (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     const tenantId = res.locals.tenantId as string
+    const parsed = listQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() })
+      return
+    }
     try {
-      const { data, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("leave_types")
         .select(SELECT_COLS)
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: true })
+      if (parsed.data.special !== undefined) query = query.eq("special", parsed.data.special)
+
+      const { data, error } = await query.order("created_at", { ascending: true })
 
       if (error) {
         next(new Error(`GET /leave-types: ${error.message}`))
@@ -79,6 +96,7 @@ leaveTypesRouter.post(
           code: parsed.data.code,
           name: parsed.data.name,
           paid: parsed.data.paid ?? true,
+          special: parsed.data.special ?? false,
         })
         .select("id")
         .single()
@@ -118,6 +136,7 @@ leaveTypesRouter.patch(
     if (parsed.data.code !== undefined) patch.code = parsed.data.code
     if (parsed.data.name !== undefined) patch.name = parsed.data.name
     if (parsed.data.paid !== undefined) patch.paid = parsed.data.paid
+    if (parsed.data.special !== undefined) patch.special = parsed.data.special
 
     try {
       const { data, error } = await supabaseAdmin
