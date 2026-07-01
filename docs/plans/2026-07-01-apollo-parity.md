@@ -27,9 +27,9 @@
 
 ## 階段 ② 人事主檔強化
 
-- **Hire 報到管理**：`onboarding` 表（報到日/單位/直屬主管/身分別/地區/狀態 未報到→已報到）；`GET/POST /onboarding`、Excel 範本、批次匯入；報到完成 → 建 employee。
+- **Hire 報到管理**：✅ 完成、測試綠。`onboardings` 表（migration 0011）+ RLS(HR-only)；`GET/POST/PATCH/DELETE /onboardings` + `POST /onboardings/:id/complete`（建 employee 並連結，pending→completed）；Admin `/admin/onboarding` 頁。
 - **公司組織圖**：✅ 完成、測試綠。`departments.parent_id` 本已存在（免 migration）；`GET /org-chart` 回巢狀樹（全員工可讀）；Admin `/admin/org-chart` 樹狀圖頁 + 首頁入口。
-- **豐富員工履歷**：新表 `employee_educations` / `employee_certifications` / `employee_work_history` / `employee_job_history` + 通訊資料欄位；My Data 分頁 UI。
+- **豐富員工履歷**：✅ 完成、測試綠。`employee_profiles`(1:1 通訊)/`employee_educations`/`employee_certifications`/`employee_work_history`（migration 0012）+ self-or-HR RLS；`GET/PUT /employees/:id/profile` 聚合(含年資 seniorityDays) + educations/certifications/work-history 子資源 CRUD；ESS `/ess/mydata` 頁。（職務經歷 employee_job_history 暫略。）
 
 ## 階段 ③ 招募 ATS（全新模組，最大工程）
 

@@ -17,7 +17,7 @@ export function EssHeader({
 }: {
   appName?: string;
   primaryColor?: string;
-  active: "home" | "requests";
+  active: "home" | "requests" | "mydata";
   /** When the signed-in user is an HR/platform admin, show a link to /admin. */
   isAdmin?: boolean;
 }) {
@@ -32,7 +32,7 @@ export function EssHeader({
     ? ({ ["--brand" as string]: primaryColor } as React.CSSProperties)
     : undefined;
 
-  const tab = (key: "home" | "requests", label: string, href: string) => (
+  const tab = (key: "home" | "requests" | "mydata", label: string, href: string) => (
     <button
       onClick={() => router.push(href)}
       className={`text-sm font-medium px-3 py-1.5 rounded-md ${
@@ -56,6 +56,7 @@ export function EssHeader({
         <nav className="flex items-center gap-1">
           {tab("home", "今日打卡", "/ess")}
           {tab("requests", "我的申請", "/ess/requests")}
+          {tab("mydata", "我的資料", "/ess/mydata")}
         </nav>
       </div>
       <div className="flex items-center gap-3">
