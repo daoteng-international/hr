@@ -386,6 +386,93 @@ export function deleteOnboarding(id: string) {
   return apiFetch<{ id: string }>(`/onboardings/${id}`, { method: "DELETE" });
 }
 
+/* ----------------------------------------------------- recruitment (ATS) --- */
+
+export interface JobRequisition {
+  id: string;
+  tenant_id: string;
+  title: string;
+  dept_id: string | null;
+  headcount: number;
+  employment_type: string;
+  description: string | null;
+  status: "draft" | "open" | "closed";
+  is_internal: boolean;
+  created_at: string;
+}
+
+export interface Candidate {
+  id: string;
+  tenant_id: string;
+  requisition_id: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  source: string | null;
+  status: "new" | "screening" | "interviewing" | "offered" | "hired" | "rejected";
+  note: string | null;
+  created_at: string;
+}
+
+export function getJobRequisitions() {
+  return apiFetch<{ "job-requisitions": JobRequisition[] }>("/job-requisitions");
+}
+
+export function createJobRequisition(body: {
+  title: string;
+  headcount?: number;
+  isInternal?: boolean;
+  status?: "draft" | "open" | "closed";
+  description?: string;
+}) {
+  return apiFetch<{ id: string }>("/job-requisitions", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateJobRequisition(
+  id: string,
+  body: { status?: "draft" | "open" | "closed"; isInternal?: boolean },
+) {
+  return apiFetch<{ id: string }>(`/job-requisitions/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteJobRequisition(id: string) {
+  return apiFetch<{ id: string }>(`/job-requisitions/${id}`, { method: "DELETE" });
+}
+
+export function getCandidates(requisitionId?: string) {
+  const qs = requisitionId ? `?requisitionId=${requisitionId}` : "";
+  return apiFetch<{ candidates: Candidate[] }>(`/candidates${qs}`);
+}
+
+export function createCandidate(body: {
+  name: string;
+  email?: string;
+  phone?: string;
+  requisitionId?: string | null;
+  source?: string;
+}) {
+  return apiFetch<{ id: string }>("/candidates", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateCandidate(
+  id: string,
+  body: { status?: Candidate["status"]; note?: string },
+) {
+  return apiFetch<{ id: string }>(`/candidates/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
 /* ------------------------------------------------------ approval-flows ----- */
 
 export interface ApprovalFlow {

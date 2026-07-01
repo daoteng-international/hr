@@ -31,14 +31,12 @@
 - **公司組織圖**：✅ 完成、測試綠。`departments.parent_id` 本已存在（免 migration）；`GET /org-chart` 回巢狀樹（全員工可讀）；Admin `/admin/org-chart` 樹狀圖頁 + 首頁入口。
 - **豐富員工履歷**：✅ 完成、測試綠。`employee_profiles`(1:1 通訊)/`employee_educations`/`employee_certifications`/`employee_work_history`（migration 0012）+ self-or-HR RLS；`GET/PUT /employees/:id/profile` 聚合(含年資 seniorityDays) + educations/certifications/work-history 子資源 CRUD；ESS `/ess/mydata` 頁。（職務經歷 employee_job_history 暫略。）
 
-## 階段 ③ 招募 ATS（全新模組，最大工程）
+## 階段 ③ 招募 ATS — ✅ 完成、測試綠
 
-- `job_requisitions`（職缺需求單 + 審核流，複用 approval pipeline）
-- `candidates` / `talent_pool`（人才庫）
-- `interviews`（面試紀錄表、面試行事曆 — 個人 + 公司）
-- `hire_applications`（錄用申請單 + 審核）、`offer_letters`（錄用通知單）
-- `internal_jobs`（內部職缺，對員工可見）
-- 招募報表中心
+- `job_requisitions`（職缺需求單，draft/open/closed + is_internal）、`candidates`（人才庫，pipeline status）、`interviews`（面試紀錄+行事曆 scheduled_at/result）、`offers`（錄用 draft/approved/sent/accepted/declined）。migration 0013 + RLS(0013：HR-only；job_requisitions 另加內部 open 全員可讀)。
+- 路由：HR-CRUD factory 統一 `/job-requisitions`、`/candidates`、`/interviews`、`/offers`（GET 支援 filter/PATCH/DELETE）；`GET /internal-jobs`（全員可讀內部職缺）。
+- Web：Admin `/admin/recruitment`（職缺 + 人才庫 pipeline）+ 首頁入口。
+- 暫略：需求單/錄用單多關審核流（可後續複用 approval pipeline）、面試行事曆 UI、招募報表中心。
 
 ## 階段 ④ 台灣薪資法規（法規最深，需最多驗證）
 

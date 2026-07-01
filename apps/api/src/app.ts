@@ -26,6 +26,7 @@ import { kpiTemplatesRouter } from "./routes/kpi-templates.js"
 import { kpiReviewsRouter } from "./routes/kpi-reviews.js"
 import { onboardingsRouter } from "./routes/onboardings.js"
 import { employeeProfileRouter } from "./routes/employee-profile.js"
+import { recruitmentRouter } from "./routes/recruitment.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -74,6 +75,7 @@ app.use(kpiTemplatesRouter)
 app.use(kpiReviewsRouter)
 app.use(onboardingsRouter)
 app.use(employeeProfileRouter)
+app.use(recruitmentRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
