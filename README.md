@@ -9,8 +9,9 @@
 
 Monorepo（npm workspace + Turbo）｜`apps/web` Next.js 16｜`apps/api` Express 5｜`apps/worker` BullMQ｜`packages/db` Drizzle + Supabase + RLS｜`packages/rules` 規則/薪資引擎。
 
-> 狀態：P0 規劃完成，尚未開始實作。
+> 狀態：核心模組已實作（差勤、人事主檔、招募 ATS、台灣薪資法規等）。
+> 對標 Apollo/MayoHR 的補齊計畫見 [`docs/plans/2026-07-01-apollo-parity.md`](docs/plans/2026-07-01-apollo-parity.md)。
 
 ## 線上環境
-- Web（Vercel）: https://web-phi-jade-50.vercel.app
+- Web（Vercel）: https://hr-theta-peach.vercel.app
 - API（Railway）: https://hr-production-994f.up.railway.app/health
