@@ -31,8 +31,12 @@ const updateSchema = z
   })
   .refine((b) => Object.keys(b).length > 0, { message: "no fields to update" })
 
+// Apollo Hire list filters: 狀態 / 報到區間(from~to) / 關鍵字(姓名).
 const listQuerySchema = z.object({
   status: z.enum(["pending", "completed"]).optional(),
+  from: z.string().regex(dateRe).optional(),
+  to: z.string().regex(dateRe).optional(),
+  keyword: z.string().trim().min(1).optional(),
 })
 
 const SELECT_COLS =
@@ -60,12 +64,92 @@ onboardingsRouter.get(
     try {
       let query = supabaseAdmin.from("onboardings").select(SELECT_COLS).eq("tenant_id", tenantId)
       if (parsed.data.status) query = query.eq("status", parsed.data.status)
+      if (parsed.data.from) query = query.gte("report_date", parsed.data.from)
+      if (parsed.data.to) query = query.lte("report_date", parsed.data.to)
+      if (parsed.data.keyword) query = query.ilike("name", `%${parsed.data.keyword}%`)
       const { data, error } = await query.order("created_at", { ascending: false })
       if (error) {
         next(new Error(`GET /onboardings: ${error.message}`))
         return
       }
       res.status(200).json({ onboardings: data ?? [] })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * POST /onboardings/import — 批次匯入 (Apollo Hire's Excel batch import, CSV
+ * form). Header: name,reportDate[,identityType][,region][,employmentType].
+ * Per-line validated; valid rows inserted as pending, bad rows reported with
+ * their line number so one typo never sinks the batch. HR-only.
+ */
+const importSchema = z.object({ csv: z.string().min(1, "csv is required") })
+
+onboardingsRouter.post(
+  "/onboardings/import",
+  requireAuth,
+  requireTenant,
+  requireHrAdmin,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const parsed = importSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+    const rowSchema = z.object({
+      name: z.string().trim().min(1),
+      reportDate: z.string().regex(dateRe).optional(),
+      identityType: z.string().trim().optional(),
+      region: z.string().trim().optional(),
+      employmentType: z.string().trim().optional(),
+    })
+    const lines = parsed.data.csv
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+    if (lines.length < 2) {
+      res.status(400).json({ error: "no_valid_rows", errors: [{ line: 0, error: "need header + rows" }] })
+      return
+    }
+    const headers = lines[0].split(",").map((h) => h.trim())
+    const rows: Record<string, unknown>[] = []
+    const errors: { line: number; error: string }[] = []
+    lines.slice(1).forEach((line, i) => {
+      const cells = line.split(",")
+      const raw: Record<string, string> = {}
+      headers.forEach((h, col) => {
+        const v = (cells[col] ?? "").trim()
+        if (v) raw[h] = v
+      })
+      const r = rowSchema.safeParse(raw)
+      if (!r.success) {
+        errors.push({ line: i + 2, error: r.error.issues.map((x) => x.message).join("; ") })
+        return
+      }
+      rows.push({
+        tenant_id: tenantId,
+        name: r.data.name,
+        report_date: r.data.reportDate ?? null,
+        identity_type: r.data.identityType ?? null,
+        region: r.data.region ?? null,
+        employment_type: r.data.employmentType ?? "regular",
+        status: "pending",
+      })
+    })
+    if (rows.length === 0) {
+      res.status(400).json({ error: "no_valid_rows", errors })
+      return
+    }
+    try {
+      const { data, error } = await supabaseAdmin.from("onboardings").insert(rows).select("id")
+      if (error) {
+        next(new Error(`POST /onboardings/import: ${error.message}`))
+        return
+      }
+      res.status(201).json({ count: data?.length ?? 0, errors })
     } catch (err) {
       next(err)
     }

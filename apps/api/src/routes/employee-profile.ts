@@ -33,21 +33,45 @@ async function authorize(
 }
 
 const profileSchema = z.object({
-  phone: z.string().trim().nullish(),
-  personalEmail: z.string().trim().nullish(),
-  address: z.string().trim().nullish(),
-  emergencyContact: z.string().trim().nullish(),
-  emergencyPhone: z.string().trim().nullish(),
+  // 基本資料 (Apollo field-for-field)
+  englishName: z.string().trim().nullish(),
+  nationality: z.string().trim().nullish(),
+  idType: z.string().trim().nullish(),
+  idNumber: z.string().trim().nullish(),
+  idExpiry: z.string().regex(dateRe).nullish(),
+  idType2: z.string().trim().nullish(),
+  idNumber2: z.string().trim().nullish(),
+  idExpiry2: z.string().regex(dateRe).nullish(),
+  idType3: z.string().trim().nullish(),
+  idNumber3: z.string().trim().nullish(),
+  idExpiry3: z.string().regex(dateRe).nullish(),
+  entryDate: z.string().regex(dateRe).nullish(),
   birthday: z.string().regex(dateRe).nullish(),
   gender: z.string().trim().nullish(),
   maritalStatus: z.string().trim().nullish(),
+  // 通訊資料
+  phone: z.string().trim().nullish(),
+  phoneMobile2: z.string().trim().nullish(),
+  phoneLandline: z.string().trim().nullish(),
+  registeredAddress: z.string().trim().nullish(),
+  address: z.string().trim().nullish(),
+  companyEmail: z.string().trim().nullish(),
+  personalEmail: z.string().trim().nullish(),
+  emergencyContact: z.string().trim().nullish(),
+  emergencyRelationship: z.string().trim().nullish(),
+  emergencyPhone: z.string().trim().nullish(),
   note: z.string().trim().nullish(),
 })
 
 const educationSchema = z.object({
   school: z.string().trim().min(1),
+  isHighest: z.boolean().optional(),
+  majorCategory: z.string().trim().nullish(),
   major: z.string().trim().nullish(),
   degree: z.string().trim().nullish(),
+  studyType: z.string().trim().nullish(),
+  studyStatus: z.string().trim().nullish(),
+  region: z.string().trim().nullish(),
   startDate: z.string().regex(dateRe).nullish(),
   endDate: z.string().regex(dateRe).nullish(),
 })
@@ -75,6 +99,13 @@ function seniorityDays(hireDate: string | null): number | null {
   return Math.floor(ms / 86_400_000)
 }
 
+// Tenure in years to 1 decimal (Apollo 年資 style, e.g. 1.3), or null.
+function seniorityYears(hireDate: string | null): number | null {
+  const days = seniorityDays(hireDate)
+  if (days == null) return null
+  return Math.round((days / 365) * 10) / 10
+}
+
 /**
  * GET /employees/:empId/profile — the aggregate My Data view (基本/通訊/學歷證照/
  * 工作經歷/年資). Self-or-HR only; tenant-scoped. Returns null `profile` when the
@@ -99,7 +130,8 @@ employeeProfileRouter.get(
         return
       }
 
-      const [basic, profile, educations, certifications, workHistory] = await Promise.all([
+      const [basic, profile, educations, certifications, workHistory, jobHistory] =
+        await Promise.all([
         supabaseAdmin
           .from("employees")
           .select("id, name, emp_no, dept_id, employment_type, hire_date, role, status")
@@ -109,14 +141,16 @@ employeeProfileRouter.get(
         supabaseAdmin
           .from("employee_profiles")
           .select(
-            "id, phone, personal_email, address, emergency_contact, emergency_phone, birthday, gender, marital_status, note, updated_at",
+            "id, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, emergency_contact, emergency_relationship, emergency_phone, note, updated_at",
           )
           .eq("tenant_id", tenantId)
           .eq("employee_id", empId)
           .maybeSingle(),
         supabaseAdmin
           .from("employee_educations")
-          .select("id, school, major, degree, start_date, end_date")
+          .select(
+            "id, school, is_highest, major_category, major, degree, study_type, study_status, region, start_date, end_date",
+          )
           .eq("tenant_id", tenantId)
           .eq("employee_id", empId)
           .order("start_date", { ascending: false }),
@@ -132,6 +166,12 @@ employeeProfileRouter.get(
           .eq("tenant_id", tenantId)
           .eq("employee_id", empId)
           .order("start_date", { ascending: false }),
+        supabaseAdmin
+          .from("employee_job_history")
+          .select("id, effective_date, action, dept_id, dept_name, grade, title")
+          .eq("tenant_id", tenantId)
+          .eq("employee_id", empId)
+          .order("effective_date", { ascending: false }),
       ])
 
       if (!basic.data) {
@@ -139,13 +179,24 @@ employeeProfileRouter.get(
         return
       }
 
+      const hireDate = (basic.data.hire_date as string | null) ?? null
+      // 單位年資: years since the latest dept-changing entry (or hire) — the most
+      // recent job-history row with a dept is when the current unit began.
+      const unitStart =
+        (jobHistory.data ?? []).find((j) => j.dept_id || j.dept_name)?.effective_date ?? hireDate
       res.status(200).json({
         basic: basic.data,
         profile: profile.data ?? null,
         educations: educations.data ?? [],
         certifications: certifications.data ?? [],
         workHistory: workHistory.data ?? [],
-        seniorityDays: seniorityDays((basic.data.hire_date as string | null) ?? null),
+        jobHistory: jobHistory.data ?? [],
+        seniorityDays: seniorityDays(hireDate),
+        seniority: {
+          internalYears: seniorityYears(hireDate),
+          gradeYears: null,
+          unitYears: seniorityYears((unitStart as string | null) ?? null),
+        },
       })
     } catch (err) {
       next(err)
@@ -178,25 +229,49 @@ employeeProfileRouter.put(
         return
       }
       const d = parsed.data
+      // Partial semantics: a key absent from the body (undefined) is left
+      // untouched; an explicit null clears the column. Prevents a tab that only
+      // edits 通訊資料 from wiping the 基本資料 fields (and vice versa).
+      const FIELD_TO_COL: Record<string, string> = {
+        englishName: "english_name",
+        nationality: "nationality",
+        idType: "id_type",
+        idNumber: "id_number",
+        idExpiry: "id_expiry",
+        idType2: "id_type2",
+        idNumber2: "id_number2",
+        idExpiry2: "id_expiry2",
+        idType3: "id_type3",
+        idNumber3: "id_number3",
+        idExpiry3: "id_expiry3",
+        entryDate: "entry_date",
+        birthday: "birthday",
+        gender: "gender",
+        maritalStatus: "marital_status",
+        phone: "phone",
+        phoneMobile2: "phone_mobile2",
+        phoneLandline: "phone_landline",
+        registeredAddress: "registered_address",
+        address: "address",
+        companyEmail: "company_email",
+        personalEmail: "personal_email",
+        emergencyContact: "emergency_contact",
+        emergencyRelationship: "emergency_relationship",
+        emergencyPhone: "emergency_phone",
+        note: "note",
+      }
+      const row: Record<string, unknown> = {
+        tenant_id: tenantId,
+        employee_id: empId,
+        updated_at: new Date().toISOString(),
+      }
+      for (const [field, col] of Object.entries(FIELD_TO_COL)) {
+        const v = (d as Record<string, unknown>)[field]
+        if (v !== undefined) row[col] = v
+      }
       const { data, error } = await supabaseAdmin
         .from("employee_profiles")
-        .upsert(
-          {
-            tenant_id: tenantId,
-            employee_id: empId,
-            phone: d.phone ?? null,
-            personal_email: d.personalEmail ?? null,
-            address: d.address ?? null,
-            emergency_contact: d.emergencyContact ?? null,
-            emergency_phone: d.emergencyPhone ?? null,
-            birthday: d.birthday ?? null,
-            gender: d.gender ?? null,
-            marital_status: d.maritalStatus ?? null,
-            note: d.note ?? null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "tenant_id,employee_id" },
-        )
+        .upsert(row, { onConflict: "tenant_id,employee_id" })
         .select("id")
         .single()
       if (error || !data) {
@@ -302,8 +377,13 @@ function listResource<S extends z.ZodTypeAny>(
 
 listResource("educations", "employee_educations", educationSchema, (d) => ({
   school: d.school,
+  is_highest: d.isHighest ?? false,
+  major_category: d.majorCategory ?? null,
   major: d.major ?? null,
   degree: d.degree ?? null,
+  study_type: d.studyType ?? null,
+  study_status: d.studyStatus ?? null,
+  region: d.region ?? null,
   start_date: d.startDate ?? null,
   end_date: d.endDate ?? null,
 }))
@@ -322,3 +402,62 @@ listResource("work-history", "employee_work_history", workHistorySchema, (d) => 
   end_date: d.endDate ?? null,
   description: d.description ?? null,
 }))
+
+/**
+ * POST /employees/:empId/job-history — HR records a 職務經歷 entry (新進/晉升/
+ * 調部門/資料調整…). HR-only (unlike the self-editable lists above): employees
+ * read their history via the profile aggregate but cannot rewrite it.
+ */
+const jobHistorySchema = z.object({
+  effectiveDate: z.string().regex(dateRe),
+  action: z.string().trim().min(1),
+  deptId: z.string().uuid().nullish(),
+  deptName: z.string().trim().nullish(),
+  grade: z.string().trim().nullish(),
+  title: z.string().trim().nullish(),
+})
+
+employeeProfileRouter.post(
+  "/employees/:empId/job-history",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId ?? NIL
+    const empId = req.params.empId as string
+    const parsed = jobHistorySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+    try {
+      const auth = await authorize(tenantId, userId, empId)
+      if (!auth || !auth.isHr) {
+        res.status(403).json({ error: "forbidden" })
+        return
+      }
+      const d = parsed.data
+      const { data, error } = await supabaseAdmin
+        .from("employee_job_history")
+        .insert({
+          tenant_id: tenantId,
+          employee_id: empId,
+          effective_date: d.effectiveDate,
+          action: d.action,
+          dept_id: d.deptId ?? null,
+          dept_name: d.deptName ?? null,
+          grade: d.grade ?? null,
+          title: d.title ?? null,
+        })
+        .select("id")
+        .single()
+      if (error || !data) {
+        next(new Error(`POST /employees/${empId}/job-history: ${error?.message}`))
+        return
+      }
+      res.status(201).json({ id: data.id })
+    } catch (err) {
+      next(err)
+    }
+  },
+)

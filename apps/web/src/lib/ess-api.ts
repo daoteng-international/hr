@@ -156,25 +156,88 @@ export function cancelRequest(id: string) {
  */
 /* ------------------------------------------------------- my data / 履歷 --- */
 
+// DB-shape (snake_case) of the 1:1 profile as returned by GET — Apollo 基本+通訊.
 export interface EmployeeProfile {
-  phone: string | null;
-  personal_email: string | null;
-  address: string | null;
-  emergency_contact: string | null;
-  emergency_phone: string | null;
+  english_name: string | null;
+  nationality: string | null;
+  id_type: string | null;
+  id_number: string | null;
+  id_expiry: string | null;
+  id_type2: string | null;
+  id_number2: string | null;
+  id_expiry2: string | null;
+  id_type3: string | null;
+  id_number3: string | null;
+  id_expiry3: string | null;
+  entry_date: string | null;
   birthday: string | null;
   gender: string | null;
   marital_status: string | null;
+  phone: string | null;
+  phone_mobile2: string | null;
+  phone_landline: string | null;
+  registered_address: string | null;
+  address: string | null;
+  company_email: string | null;
+  personal_email: string | null;
+  emergency_contact: string | null;
+  emergency_relationship: string | null;
+  emergency_phone: string | null;
   note: string | null;
+}
+
+// PUT body (camelCase, partial: absent = untouched, null = clear).
+export interface SaveProfileBody {
+  englishName?: string | null;
+  nationality?: string | null;
+  idType?: string | null;
+  idNumber?: string | null;
+  idExpiry?: string | null;
+  idType2?: string | null;
+  idNumber2?: string | null;
+  idExpiry2?: string | null;
+  idType3?: string | null;
+  idNumber3?: string | null;
+  idExpiry3?: string | null;
+  entryDate?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
+  maritalStatus?: string | null;
+  phone?: string | null;
+  phoneMobile2?: string | null;
+  phoneLandline?: string | null;
+  registeredAddress?: string | null;
+  address?: string | null;
+  companyEmail?: string | null;
+  personalEmail?: string | null;
+  emergencyContact?: string | null;
+  emergencyRelationship?: string | null;
+  emergencyPhone?: string | null;
+  note?: string | null;
 }
 
 export interface Education {
   id: string;
   school: string;
+  is_highest: boolean;
+  major_category: string | null;
   major: string | null;
   degree: string | null;
+  study_type: string | null;
+  study_status: string | null;
+  region: string | null;
   start_date: string | null;
   end_date: string | null;
+}
+
+export interface JobHistoryEntry {
+  id: string;
+  effective_date: string;
+  action: string;
+  dept_id: string | null;
+  dept_name: string | null;
+  grade: string | null;
+  title: string | null;
 }
 
 export interface Certification {
@@ -209,14 +272,20 @@ export interface ProfileAggregate {
   educations: Education[];
   certifications: Certification[];
   workHistory: WorkHistory[];
+  jobHistory: JobHistoryEntry[];
   seniorityDays: number | null;
+  seniority: {
+    internalYears: number | null;
+    gradeYears: number | null;
+    unitYears: number | null;
+  };
 }
 
 export function getProfile(empId: string) {
   return apiFetch<ProfileAggregate>(`/employees/${empId}/profile`);
 }
 
-export function saveProfile(empId: string, body: Partial<EmployeeProfile>) {
+export function saveProfile(empId: string, body: SaveProfileBody) {
   return apiFetch<{ id: string }>(`/employees/${empId}/profile`, {
     method: "PUT",
     body: JSON.stringify(body),
@@ -225,7 +294,18 @@ export function saveProfile(empId: string, body: Partial<EmployeeProfile>) {
 
 export function addEducation(
   empId: string,
-  body: { school: string; major?: string; degree?: string; startDate?: string; endDate?: string },
+  body: {
+    school: string;
+    isHighest?: boolean;
+    majorCategory?: string;
+    major?: string;
+    degree?: string;
+    studyType?: string;
+    studyStatus?: string;
+    region?: string;
+    startDate?: string;
+    endDate?: string;
+  },
 ) {
   return apiFetch<{ id: string }>(`/employees/${empId}/educations`, {
     method: "POST",

@@ -357,9 +357,26 @@ export interface Onboarding {
   created_at: string;
 }
 
-export function getOnboardings(status?: "pending" | "completed") {
-  const qs = status ? `?status=${status}` : "";
-  return apiFetch<{ onboardings: Onboarding[] }>(`/onboardings${qs}`);
+export function getOnboardings(filters?: {
+  status?: "pending" | "completed";
+  from?: string;
+  to?: string;
+  keyword?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.from) params.set("from", filters.from);
+  if (filters?.to) params.set("to", filters.to);
+  if (filters?.keyword) params.set("keyword", filters.keyword);
+  const qs = params.toString();
+  return apiFetch<{ onboardings: Onboarding[] }>(`/onboardings${qs ? `?${qs}` : ""}`);
+}
+
+export function importOnboardings(csv: string) {
+  return apiFetch<{ count: number; errors: { line: number; error: string }[] }>(
+    "/onboardings/import",
+    { method: "POST", body: JSON.stringify({ csv }) },
+  );
 }
 
 export function createOnboarding(body: {

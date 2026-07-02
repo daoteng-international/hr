@@ -7,8 +7,11 @@ import {
   createOnboarding,
   completeOnboarding,
   deleteOnboarding,
+  importOnboardings,
   type Onboarding,
 } from "@/lib/admin-api";
+
+const CSV_TEMPLATE = "name,reportDate,identityType,region,employmentType\n王小明,2026-08-01,全職,台北,regular\n";
 
 const inputCls =
   "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none";
@@ -26,10 +29,25 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Apollo Hire filters: 狀態 / 報到區間 / 關鍵字.
+  const [fStatus, setFStatus] = useState<"" | "pending" | "completed">("");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
+  const [fKeyword, setFKeyword] = useState("");
+
+  // 批次匯入
+  const [csv, setCsv] = useState("");
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getOnboardings();
+      const res = await getOnboardings({
+        status: fStatus || undefined,
+        from: fFrom || undefined,
+        to: fTo || undefined,
+        keyword: fKeyword.trim() || undefined,
+      });
       setRows(res.onboardings);
       setError(null);
     } catch (err) {
@@ -37,7 +55,31 @@ export default function OnboardingPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fStatus, fFrom, fTo, fKeyword]);
+
+  function downloadTemplate() {
+    const blob = new Blob(["﻿" + CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "onboarding-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function onImport(e: FormEvent) {
+    e.preventDefault();
+    setImportMsg(null);
+    if (!csv.trim()) return;
+    try {
+      const res = await importOnboardings(csv);
+      setImportMsg(`匯入 ${res.count} 筆，錯誤 ${res.errors.length} 筆${res.errors.length ? `（第 ${res.errors.map((x) => x.line).join(", ")} 行）` : ""}`);
+      setCsv("");
+      await load();
+    } catch (err) {
+      setImportMsg(err instanceof Error ? err.message : "匯入失敗");
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -123,7 +165,56 @@ export default function OnboardingPage() {
       </Card>
 
       <Card>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-500">批次匯入</h2>
+          <button onClick={downloadTemplate} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+            ⬇ 範本下載 (CSV)
+          </button>
+        </div>
+        <form onSubmit={onImport} className="space-y-3">
+          <textarea
+            className={`${inputCls} h-24 font-mono`}
+            placeholder={CSV_TEMPLATE}
+            value={csv}
+            onChange={(e) => setCsv(e.target.value)}
+          />
+          <div className="flex items-center gap-3">
+            <PrimaryButton type="submit">批次匯入</PrimaryButton>
+            {importMsg && <span className="text-sm text-green-600">{importMsg}</span>}
+          </div>
+        </form>
+      </Card>
+
+      <Card>
         <h2 className="mb-4 text-sm font-medium text-gray-500">報到清單</h2>
+        {/* Apollo Hire 篩選列：狀態 / 報到區間 / 關鍵字 */}
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div>
+            <label className={labelCls}>狀態</label>
+            <select className={inputCls} value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | "pending" | "completed")}>
+              <option value="">全部</option>
+              <option value="pending">未報到</option>
+              <option value="completed">已報到</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>報到區間（起）</label>
+            <input type="date" className={inputCls} value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>報到區間（迄）</label>
+            <input type="date" className={inputCls} value={fTo} onChange={(e) => setFTo(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>關鍵字（姓名）</label>
+            <input className={inputCls} value={fKeyword} onChange={(e) => setFKeyword(e.target.value)} />
+          </div>
+          <div className="flex items-end">
+            <PrimaryButton type="button" onClick={() => void load()}>
+              查詢
+            </PrimaryButton>
+          </div>
+        </div>
         {error && <div className="mb-3"><ErrorText>{error}</ErrorText></div>}
         {loading ? (
           <Empty>載入中…</Empty>

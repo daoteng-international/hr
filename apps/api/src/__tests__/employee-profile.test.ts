@@ -62,6 +62,7 @@ afterAll(async () => {
       "employee_educations",
       "employee_certifications",
       "employee_work_history",
+      "employee_job_history",
     ]) {
       await supabaseAdmin.from(t).delete().eq("tenant_id", tid)
     }
@@ -129,6 +130,96 @@ describe("F-MyData 履歷 — employee profile aggregate + sub-resources", () =>
     expect(res.body.workHistory.length).toBe(1)
     // seniorityDays is a number or null (hire_date may be unset).
     expect(res.body).toHaveProperty("seniorityDays")
+    // Apollo-parity additions: jobHistory list + seniority breakdown.
+    expect(Array.isArray(res.body.jobHistory)).toBe(true)
+    expect(res.body.seniority).toHaveProperty("internalYears")
+    expect(res.body.seniority).toHaveProperty("unitYears")
+  })
+
+  it("Apollo 基本/通訊 fields roundtrip; partial PUT leaves other fields intact", async () => {
+    // Fill Apollo 基本資料 fields.
+    const put1 = await request(app)
+      .put(`/employees/${empId}/profile`)
+      .set("Authorization", `Bearer ${empToken}`)
+      .send({
+        englishName: "Pat",
+        nationality: "台灣",
+        idType: "台灣身分證",
+        idNumber: "A123456789",
+        registeredAddress: "高雄市...",
+        companyEmail: "pat@corp.example.com",
+        emergencyRelationship: "配偶",
+        phoneLandline: "07-1234567",
+      })
+    expect(put1.status).toBe(200)
+
+    // Partial update of ONE field must not wipe the rest.
+    const put2 = await request(app)
+      .put(`/employees/${empId}/profile`)
+      .set("Authorization", `Bearer ${empToken}`)
+      .send({ phone: "0911222333" })
+    expect(put2.status).toBe(200)
+
+    const res = await request(app)
+      .get(`/employees/${empId}/profile`)
+      .set("Authorization", `Bearer ${empToken}`)
+    expect(res.body.profile.english_name).toBe("Pat")
+    expect(res.body.profile.id_number).toBe("A123456789")
+    expect(res.body.profile.registered_address).toBe("高雄市...")
+    expect(res.body.profile.company_email).toBe("pat@corp.example.com")
+    expect(res.body.profile.emergency_relationship).toBe("配偶")
+    expect(res.body.profile.phone).toBe("0911222333")
+  })
+
+  it("education accepts Apollo fields (isHighest/studyType/studyStatus/region)", async () => {
+    const res = await request(app)
+      .post(`/employees/${empId}/educations`)
+      .set("Authorization", `Bearer ${empToken}`)
+      .send({
+        school: "NCKU",
+        isHighest: true,
+        majorCategory: "工程",
+        major: "EE",
+        degree: "碩士",
+        studyType: "日間部",
+        studyStatus: "畢業",
+        region: "台南",
+        startDate: "2014-09-01",
+        endDate: "2016-06-30",
+      })
+    expect(res.status).toBe(201)
+    const { data } = await supabaseAdmin
+      .from("employee_educations")
+      .select("is_highest, study_type, study_status, region, major_category")
+      .eq("id", res.body.id)
+      .single()
+    expect(data?.is_highest).toBe(true)
+    expect(data?.study_type).toBe("日間部")
+    expect(data?.study_status).toBe("畢業")
+    expect(data?.region).toBe("台南")
+    expect(data?.major_category).toBe("工程")
+  })
+
+  it("job-history: HR can record 職務經歷; employee cannot; it shows in aggregate", async () => {
+    const denied = await request(app)
+      .post(`/employees/${empId}/job-history`)
+      .set("Authorization", `Bearer ${empToken}`)
+      .send({ effectiveDate: "2026-01-01", action: "新進" })
+    expect(denied.status).toBe(403)
+
+    const ok = await request(app)
+      .post(`/employees/${empId}/job-history`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ effectiveDate: "2026-01-01", action: "新進", deptName: "工程部", title: "工程師" })
+    expect(ok.status).toBe(201)
+
+    const res = await request(app)
+      .get(`/employees/${empId}/profile`)
+      .set("Authorization", `Bearer ${empToken}`)
+    const jh = res.body.jobHistory as Array<{ action: string; dept_name: string }>
+    expect(jh.some((j) => j.action === "新進" && j.dept_name === "工程部")).toBe(true)
+    // unitYears now derives from that entry's effective_date.
+    expect(res.body.seniority.unitYears).not.toBeNull()
   })
 
   it("HR can read any employee's profile", async () => {

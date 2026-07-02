@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AuthGate } from "@/components/AuthGate";
 import { EssHeader } from "@/components/EssHeader";
 import {
@@ -17,10 +17,149 @@ import {
   deleteWorkHistory,
   type Branding,
   type ProfileAggregate,
+  type SaveProfileBody,
 } from "@/lib/ess-api";
 
 const input =
   "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none";
+const label = "mb-1 block text-xs font-medium text-gray-500";
+
+// Apollo My Data 六分頁.
+const TABS = ["基本資料", "通訊資料", "學歷證照", "工作經歷", "年資", "職務經歷"] as const;
+type Tab = (typeof TABS)[number];
+
+// 基本資料 fields (Apollo field-for-field; key = SaveProfileBody camelCase).
+const BASIC_FIELDS: { key: keyof SaveProfileBody; label: string; type?: "date" }[] = [
+  { key: "englishName", label: "英文姓名" },
+  { key: "nationality", label: "國籍" },
+  { key: "gender", label: "性別" },
+  { key: "idType", label: "證件類型" },
+  { key: "idNumber", label: "證件號碼" },
+  { key: "idExpiry", label: "證件到期日", type: "date" },
+  { key: "idType2", label: "證件類型2" },
+  { key: "idNumber2", label: "證件號碼2" },
+  { key: "idExpiry2", label: "證件到期日2", type: "date" },
+  { key: "idType3", label: "證件類型3" },
+  { key: "idNumber3", label: "證件號碼3" },
+  { key: "idExpiry3", label: "證件到期日3", type: "date" },
+  { key: "entryDate", label: "入境時間", type: "date" },
+  { key: "birthday", label: "生日", type: "date" },
+  { key: "maritalStatus", label: "婚姻狀態" },
+];
+
+// 通訊資料 fields.
+const CONTACT_FIELDS: { key: keyof SaveProfileBody; label: string; type?: "date" }[] = [
+  { key: "phone", label: "電話(手機)" },
+  { key: "phoneMobile2", label: "電話(手機2)" },
+  { key: "phoneLandline", label: "電話(市話)" },
+  { key: "registeredAddress", label: "戶籍地址" },
+  { key: "address", label: "聯絡地址" },
+  { key: "companyEmail", label: "公司信箱" },
+  { key: "personalEmail", label: "私人信箱" },
+  { key: "emergencyContact", label: "緊急聯絡人" },
+  { key: "emergencyRelationship", label: "緊急聯絡人關係" },
+  { key: "emergencyPhone", label: "緊急聯絡人電話" },
+];
+
+// GET returns snake_case; map camelCase form key -> snake_case profile key.
+const SNAKE: Record<string, string> = {
+  englishName: "english_name",
+  nationality: "nationality",
+  idType: "id_type",
+  idNumber: "id_number",
+  idExpiry: "id_expiry",
+  idType2: "id_type2",
+  idNumber2: "id_number2",
+  idExpiry2: "id_expiry2",
+  idType3: "id_type3",
+  idNumber3: "id_number3",
+  idExpiry3: "id_expiry3",
+  entryDate: "entry_date",
+  birthday: "birthday",
+  gender: "gender",
+  maritalStatus: "marital_status",
+  phone: "phone",
+  phoneMobile2: "phone_mobile2",
+  phoneLandline: "phone_landline",
+  registeredAddress: "registered_address",
+  address: "address",
+  companyEmail: "company_email",
+  personalEmail: "personal_email",
+  emergencyContact: "emergency_contact",
+  emergencyRelationship: "emergency_relationship",
+  emergencyPhone: "emergency_phone",
+};
+
+function ProfileFieldsForm({
+  empId,
+  data,
+  fields,
+  onSaved,
+}: {
+  empId: string;
+  data: ProfileAggregate;
+  fields: { key: keyof SaveProfileBody; label: string; type?: "date" }[];
+  onSaved: () => Promise<void>;
+}) {
+  const initial = useMemo(() => {
+    const v: Record<string, string> = {};
+    for (const f of fields) {
+      const raw = data.profile
+        ? (data.profile as unknown as Record<string, string | null>)[SNAKE[f.key as string]]
+        : null;
+      v[f.key as string] = raw ?? "";
+    }
+    return v;
+  }, [data, fields]);
+  const [values, setValues] = useState(initial);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => setValues(initial), [initial]);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    const body: SaveProfileBody = {};
+    for (const f of fields) {
+      const v = (values[f.key as string] ?? "").trim();
+      (body as Record<string, string | null>)[f.key as string] = v || null;
+    }
+    try {
+      await saveProfile(empId, body);
+      setMsg("已儲存");
+      await onSaved();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "儲存失敗");
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {fields.map((f) => (
+          <div key={f.key as string}>
+            <label className={label}>{f.label}</label>
+            <input
+              className={input}
+              type={f.type ?? "text"}
+              value={values[f.key as string] ?? ""}
+              onChange={(e) => setValues((p) => ({ ...p, [f.key as string]: e.target.value }))}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          className="rounded-md px-4 py-2 text-sm font-medium text-white"
+          style={{ backgroundColor: "var(--brand)" }}
+        >
+          儲存
+        </button>
+        {msg && <span className="text-sm text-green-600">{msg}</span>}
+      </div>
+    </form>
+  );
+}
 
 function MyDataInner() {
   const [branding, setBranding] = useState<Branding | null>(null);
@@ -28,22 +167,25 @@ function MyDataInner() {
   const [empId, setEmpId] = useState<string | null>(null);
   const [data, setData] = useState<ProfileAggregate | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("基本資料");
 
-  // contact form
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [emergencyContact, setEmergencyContact] = useState("");
-  const [emergencyPhone, setEmergencyPhone] = useState("");
-  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  // 學歷 add-form state (Apollo fields)
+  const [showEduForm, setShowEduForm] = useState(false);
+  const [edu, setEdu] = useState({
+    school: "",
+    degree: "",
+    majorCategory: "",
+    major: "",
+    studyType: "日間部",
+    studyStatus: "畢業",
+    region: "",
+    startDate: "",
+    endDate: "",
+    isHighest: false,
+  });
 
   const load = useCallback(async (id: string) => {
-    const agg = await getProfile(id);
-    setData(agg);
-    setPhone(agg.profile?.phone ?? "");
-    setAddress(agg.profile?.address ?? "");
-    setEmergencyContact(agg.profile?.emergency_contact ?? "");
-    setEmergencyPhone(agg.profile?.emergency_phone ?? "");
+    setData(await getProfile(id));
   }, []);
 
   useEffect(() => {
@@ -58,8 +200,6 @@ function MyDataInner() {
         await load(me.id);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "載入失敗");
-      } finally {
-        if (active) setLoading(false);
       }
     })();
     return () => {
@@ -67,43 +207,41 @@ function MyDataInner() {
     };
   }, [load]);
 
-  async function onSaveContact(e: FormEvent) {
+  async function submitEdu(e: FormEvent) {
     e.preventDefault();
-    if (!empId) return;
-    setSavedMsg(null);
-    try {
-      await saveProfile(empId, {
-        phone: phone.trim() || null,
-        address: address.trim() || null,
-        emergency_contact: emergencyContact.trim() || null,
-        emergency_phone: emergencyPhone.trim() || null,
-      });
-      setSavedMsg("已儲存");
-      await load(empId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "儲存失敗");
-    }
-  }
-
-  async function quickAddEducation() {
-    if (!empId) return;
-    const school = prompt("學校名稱？");
-    if (!school) return;
-    await addEducation(empId, { school });
+    if (!empId || !edu.school.trim()) return;
+    await addEducation(empId, {
+      school: edu.school.trim(),
+      isHighest: edu.isHighest,
+      majorCategory: edu.majorCategory.trim() || undefined,
+      major: edu.major.trim() || undefined,
+      degree: edu.degree.trim() || undefined,
+      studyType: edu.studyType,
+      studyStatus: edu.studyStatus,
+      region: edu.region.trim() || undefined,
+      startDate: edu.startDate || undefined,
+      endDate: edu.endDate || undefined,
+    });
+    setShowEduForm(false);
+    setEdu({ school: "", degree: "", majorCategory: "", major: "", studyType: "日間部", studyStatus: "畢業", region: "", startDate: "", endDate: "", isHighest: false });
     await load(empId);
   }
-  async function quickAddCertification() {
+
+  async function quickAddCert() {
     if (!empId) return;
     const name = prompt("證照名稱？");
     if (!name) return;
-    await addCertification(empId, { name });
+    const issuer = prompt("發證單位？（可留空）") ?? undefined;
+    await addCertification(empId, { name, issuer: issuer || undefined });
     await load(empId);
   }
+
   async function quickAddWork() {
     if (!empId) return;
     const company = prompt("公司名稱？");
     if (!company) return;
-    await addWorkHistory(empId, { company });
+    const title = prompt("職稱？（可留空）") ?? undefined;
+    await addWorkHistory(empId, { company, title: title || undefined });
     await load(empId);
   }
 
@@ -115,124 +253,229 @@ function MyDataInner() {
     await load(empId);
   }
 
-  const seniority =
-    data?.seniorityDays != null ? `${Math.floor(data.seniorityDays / 365)} 年 ${data.seniorityDays % 365} 天` : "—";
+  const yearsLabel = (y: number | null) => (y == null ? "N/A" : y.toFixed(1));
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <EssHeader
-        appName={branding?.appName}
-        primaryColor={branding?.primaryColor}
-        active="mydata"
-        isAdmin={isAdmin}
-      />
-      <main className="mx-auto max-w-2xl space-y-6 p-4">
+      <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="mydata" isAdmin={isAdmin} />
+      <main className="mx-auto max-w-3xl space-y-4 p-4">
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {loading || !data ? (
+        {!data ? (
           <p className="text-sm text-gray-400">載入中…</p>
         ) : (
-          <>
-            <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h2 className="mb-3 text-lg font-semibold text-gray-800">基本資料</h2>
-              <dl className="grid grid-cols-2 gap-2 text-sm">
-                <dt className="text-gray-500">姓名</dt><dd>{data.basic.name}</dd>
-                <dt className="text-gray-500">員工編號</dt><dd>{data.basic.emp_no ?? "—"}</dd>
-                <dt className="text-gray-500">到職日</dt><dd>{data.basic.hire_date ?? "—"}</dd>
-                <dt className="text-gray-500">年資</dt><dd>{seniority}</dd>
-              </dl>
-            </section>
+          <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            {/* Apollo 六分頁 */}
+            <nav className="mb-5 flex flex-wrap gap-1 border-b border-gray-100 pb-2">
+              {TABS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                  style={tab === t ? { backgroundColor: "var(--brand)" } : undefined}
+                >
+                  {t}
+                </button>
+              ))}
+            </nav>
 
-            <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h2 className="mb-3 text-lg font-semibold text-gray-800">通訊資料</h2>
-              <form onSubmit={onSaveContact} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <input className={input} placeholder="電話" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                  <input className={input} placeholder="地址" value={address} onChange={(e) => setAddress(e.target.value)} />
-                  <input className={input} placeholder="緊急聯絡人" value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} />
-                  <input className={input} placeholder="緊急聯絡電話" value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)} />
+            {tab === "基本資料" && empId && (
+              <>
+                <dl className="mb-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                  <dt className="text-gray-500">姓名</dt>
+                  <dd className="font-medium">{data.basic.name}</dd>
+                  <dt className="text-gray-500">員工編號</dt>
+                  <dd>{data.basic.emp_no ?? "—"}</dd>
+                </dl>
+                <ProfileFieldsForm empId={empId} data={data} fields={BASIC_FIELDS} onSaved={() => load(empId)} />
+              </>
+            )}
+
+            {tab === "通訊資料" && empId && (
+              <ProfileFieldsForm empId={empId} data={data} fields={CONTACT_FIELDS} onSaved={() => load(empId)} />
+            )}
+
+            {tab === "學歷證照" && (
+              <div className="space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-800">學歷資料</h3>
+                    <button onClick={() => setShowEduForm((s) => !s)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      {showEduForm ? "收合" : "＋ 新增學歷"}
+                    </button>
+                  </div>
+                  {showEduForm && (
+                    <form onSubmit={submitEdu} className="mb-4 space-y-3 rounded-lg bg-gray-50 p-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div>
+                          <label className={label}>學校</label>
+                          <input className={input} value={edu.school} onChange={(e) => setEdu({ ...edu, school: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>學歷類別</label>
+                          <input className={input} placeholder="學士/碩士…" value={edu.degree} onChange={(e) => setEdu({ ...edu, degree: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>科系類別</label>
+                          <input className={input} value={edu.majorCategory} onChange={(e) => setEdu({ ...edu, majorCategory: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>科系名稱</label>
+                          <input className={input} value={edu.major} onChange={(e) => setEdu({ ...edu, major: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>就學類別</label>
+                          <select className={input} value={edu.studyType} onChange={(e) => setEdu({ ...edu, studyType: e.target.value })}>
+                            <option>日間部</option>
+                            <option>夜間部</option>
+                            <option>其他(進修部或在職專班)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={label}>就學狀態</label>
+                          <select className={input} value={edu.studyStatus} onChange={(e) => setEdu({ ...edu, studyStatus: e.target.value })}>
+                            <option>畢業</option>
+                            <option>就學中</option>
+                            <option>肄業</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={label}>就學開始時間</label>
+                          <input type="date" className={input} value={edu.startDate} onChange={(e) => setEdu({ ...edu, startDate: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>就學結束時間</label>
+                          <input type="date" className={input} value={edu.endDate} onChange={(e) => setEdu({ ...edu, endDate: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>學校所在地區</label>
+                          <input className={input} value={edu.region} onChange={(e) => setEdu({ ...edu, region: e.target.value })} />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={edu.isHighest} onChange={(e) => setEdu({ ...edu, isHighest: e.target.checked })} />
+                        最高學歷
+                      </label>
+                      <button type="submit" className="rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: "var(--brand)" }}>
+                        新增
+                      </button>
+                    </form>
+                  )}
+                  <ul className="divide-y divide-gray-100">
+                    {data.educations.map((e) => (
+                      <li key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span>
+                          <span className="font-medium text-gray-800">{e.school}</span>{" "}
+                          <span className="text-gray-500">{[e.degree, e.major, e.study_status].filter(Boolean).join(" · ")}</span>
+                          {e.is_highest && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">最高學歷</span>}
+                        </span>
+                        <button onClick={() => removeItem("edu", e.id)} className="text-red-600 hover:underline">
+                          刪除
+                        </button>
+                      </li>
+                    ))}
+                    {data.educations.length === 0 && !showEduForm && <li className="py-2 text-sm text-gray-400">尚無學歷資料</li>}
+                  </ul>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button type="submit" className="rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: "var(--brand)" }}>
-                    儲存
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-800">證照資料</h3>
+                    <button onClick={quickAddCert} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      ＋ 新增證照
+                    </button>
+                  </div>
+                  <ul className="divide-y divide-gray-100">
+                    {data.certifications.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span>
+                          <span className="font-medium text-gray-800">{c.name}</span>{" "}
+                          <span className="text-gray-500">{c.issuer ?? ""}</span>
+                        </span>
+                        <button onClick={() => removeItem("cert", c.id)} className="text-red-600 hover:underline">
+                          刪除
+                        </button>
+                      </li>
+                    ))}
+                    {data.certifications.length === 0 && <li className="py-2 text-sm text-gray-400">尚無證照資料</li>}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {tab === "工作經歷" && (
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-800">工作經歷</h3>
+                  <button onClick={quickAddWork} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                    ＋ 新增經歷
                   </button>
-                  {savedMsg && <span className="text-sm text-green-600">{savedMsg}</span>}
                 </div>
-              </form>
-            </section>
+                <ul className="divide-y divide-gray-100">
+                  {data.workHistory.map((w) => (
+                    <li key={w.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span>
+                        <span className="font-medium text-gray-800">{w.company}</span>{" "}
+                        <span className="text-gray-500">
+                          {[w.title, [w.start_date, w.end_date].filter(Boolean).join(" ~ ")].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                      <button onClick={() => removeItem("work", w.id)} className="text-red-600 hover:underline">
+                        刪除
+                      </button>
+                    </li>
+                  ))}
+                  {data.workHistory.length === 0 && <li className="py-2 text-sm text-gray-400">尚無工作經歷</li>}
+                </ul>
+              </div>
+            )}
 
-            <Section title="學歷證照" onAdd={quickAddEducation} addLabel="+ 學歷">
-              {data.educations.map((e) => (
-                <Row key={e.id} main={e.school} sub={[e.degree, e.major].filter(Boolean).join(" · ")} onDelete={() => removeItem("edu", e.id)} />
-              ))}
-              {data.certifications.map((c) => (
-                <Row key={c.id} main={c.name} sub={c.issuer ?? ""} tag="證照" onDelete={() => removeItem("cert", c.id)} />
-              ))}
-              <button onClick={quickAddCertification} className="mt-2 text-sm" style={{ color: "var(--brand)" }}>+ 證照</button>
-            </Section>
+            {tab === "年資" && (
+              <dl className="grid max-w-sm grid-cols-2 gap-3 text-sm">
+                <dt className="text-gray-500">內部年資</dt>
+                <dd className="font-medium">{yearsLabel(data.seniority.internalYears)}</dd>
+                <dt className="text-gray-500">職等年資</dt>
+                <dd className="font-medium">{yearsLabel(data.seniority.gradeYears)}</dd>
+                <dt className="text-gray-500">單位年資</dt>
+                <dd className="font-medium">{yearsLabel(data.seniority.unitYears)}</dd>
+              </dl>
+            )}
 
-            <Section title="工作經歷" onAdd={quickAddWork} addLabel="+ 經歷">
-              {data.workHistory.map((w) => (
-                <Row
-                  key={w.id}
-                  main={w.company}
-                  sub={[w.title, [w.start_date, w.end_date].filter(Boolean).join(" ~ ")].filter(Boolean).join(" · ")}
-                  onDelete={() => removeItem("work", w.id)}
-                />
-              ))}
-            </Section>
-          </>
+            {tab === "職務經歷" && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-xs text-gray-500">
+                      <th className="py-2 pr-4">生效日期</th>
+                      <th className="py-2 pr-4">異動行為</th>
+                      <th className="py-2 pr-4">直屬單位</th>
+                      <th className="py-2 pr-4">職等</th>
+                      <th className="py-2">職稱</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.jobHistory.map((j) => (
+                      <tr key={j.id} className="border-b border-gray-50">
+                        <td className="py-2 pr-4">{j.effective_date}</td>
+                        <td className="py-2 pr-4">{j.action}</td>
+                        <td className="py-2 pr-4">{j.dept_name ?? "—"}</td>
+                        <td className="py-2 pr-4">{j.grade ?? "—"}</td>
+                        <td className="py-2">{j.title ?? "—"}</td>
+                      </tr>
+                    ))}
+                    {data.jobHistory.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-3 text-gray-400">
+                          尚無職務異動紀錄
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
       </main>
     </div>
-  );
-}
-
-function Section({
-  title,
-  onAdd,
-  addLabel,
-  children,
-}: {
-  title: string;
-  onAdd: () => void;
-  addLabel: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-        <button onClick={onAdd} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
-          {addLabel}
-        </button>
-      </div>
-      <ul className="divide-y divide-gray-100">{children}</ul>
-    </section>
-  );
-}
-
-function Row({
-  main,
-  sub,
-  tag,
-  onDelete,
-}: {
-  main: string;
-  sub?: string;
-  tag?: string;
-  onDelete: () => void;
-}) {
-  return (
-    <li className="flex items-center justify-between gap-3 py-2">
-      <div className="flex items-center gap-2">
-        <span className="font-medium text-gray-800">{main}</span>
-        {tag && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{tag}</span>}
-        {sub && <span className="text-xs text-gray-500">{sub}</span>}
-      </div>
-      <button onClick={onDelete} className="text-sm text-red-600 hover:underline">
-        刪除
-      </button>
-    </li>
   );
 }
 

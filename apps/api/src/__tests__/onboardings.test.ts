@@ -139,4 +139,55 @@ describe("F-Hire 報到管理 — HR manages onboardings", () => {
       .send({ name: "Nope" })
     expect(create.status).toBe(403)
   })
+
+  it("Apollo filters: 報到區間 from/to + 關鍵字 keyword narrow the list", async () => {
+    await request(app)
+      .post("/onboardings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "早鳥恩", reportDate: "2026-07-15" })
+    await request(app)
+      .post("/onboardings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "晚到溫", reportDate: "2026-09-15" })
+
+    const ranged = await request(app)
+      .get("/onboardings?from=2026-07-01&to=2026-07-31")
+      .set("Authorization", `Bearer ${adminToken}`)
+    expect(ranged.status).toBe(200)
+    const rangedNames = (ranged.body.onboardings as Array<{ name: string }>).map((r) => r.name)
+    expect(rangedNames).toContain("早鳥恩")
+    expect(rangedNames).not.toContain("晚到溫")
+
+    const kw = await request(app)
+      .get(`/onboardings?keyword=${encodeURIComponent("晚到")}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+    expect(kw.status).toBe(200)
+    const kwNames = (kw.body.onboardings as Array<{ name: string }>).map((r) => r.name)
+    expect(kwNames).toContain("晚到溫")
+    expect(kwNames).not.toContain("早鳥恩")
+  })
+
+  it("批次匯入: POST /onboardings/import inserts valid rows, reports bad lines", async () => {
+    const csv = [
+      "name,reportDate,identityType,region",
+      "匯入甲,2026-08-01,全職,台北",
+      ",2026-08-02,全職,台中",
+      "匯入乙,2026-08-03,兼職,高雄",
+    ].join("\n")
+    const res = await request(app)
+      .post("/onboardings/import")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ csv })
+    expect(res.status).toBe(201)
+    expect(res.body.count).toBe(2)
+    expect(res.body.errors.length).toBe(1)
+    expect(res.body.errors[0].line).toBe(3)
+
+    const { count } = await supabaseAdmin
+      .from("onboardings")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .in("name", ["匯入甲", "匯入乙"])
+    expect(count).toBe(2)
+  })
 })
