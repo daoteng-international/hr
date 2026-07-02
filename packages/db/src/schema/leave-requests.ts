@@ -25,6 +25,15 @@ export const leaveRequests = pgTable("leave_requests", {
   endAt: timestamp("end_at", { withTimezone: true }).notNull(),
   hours: numeric("hours"),
   reason: text("reason"),
+  // Apollo form-parity extras (all optional, per kind):
+  //   leave: agentName 代理人.  ot: payout 給付方式 ('pay'|'comp_time').
+  //   business_trip: tripType 類型 ('trip'|'business_trip' 公出/出差),
+  //   location 地點, remark 備註 (+agentName).
+  agentName: text("agent_name"),
+  payout: text("payout"),
+  tripType: text("trip_type"),
+  location: text("location"),
+  remark: text("remark"),
   status: text("status").notNull().default("pending"),
   currentStep: integer("current_step").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

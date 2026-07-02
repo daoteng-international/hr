@@ -104,6 +104,80 @@ export interface CreateRequestBody {
   endAt: string;
   hours?: number;
   reason?: string;
+  // Apollo form-parity extras
+  agentName?: string;
+  payout?: "pay" | "comp_time";
+  tripType?: "outing" | "business_trip";
+  location?: string;
+  remark?: string;
+}
+
+/* ------------------------------------------------ punches / balances / 班表 */
+
+export interface PunchHistoryRecord {
+  id: string;
+  punch_at: string;
+  type: "in" | "out";
+  source: string | null;
+}
+
+export function getPunchRecords(from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return apiFetch<{ records: PunchHistoryRecord[] }>(`/punch${qs ? `?${qs}` : ""}`);
+}
+
+export interface LeaveBalance {
+  id: string;
+  leave_type_id: string;
+  year: number;
+  entitled: number | string;
+  used: number | string;
+  deferred: number | string;
+}
+
+export function getLeaveBalances() {
+  return apiFetch<{ balances: LeaveBalance[] }>("/leave-balances");
+}
+
+export interface ScheduleRow {
+  id: string;
+  work_date: string;
+  shift_id: string | null;
+  status: string;
+}
+
+export function getMySchedules(from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return apiFetch<{ schedules: ScheduleRow[] }>(`/schedules${qs ? `?${qs}` : ""}`);
+}
+
+export interface Shift {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+}
+
+export function getShifts() {
+  return apiFetch<{ shifts: Shift[] }>("/shifts");
+}
+
+export function acknowledgeSchedule(id: string) {
+  return apiFetch<{ id: string; status: string }>(`/schedules/${id}/acknowledge`, {
+    method: "POST",
+  });
+}
+
+export function disputeSchedule(id: string) {
+  return apiFetch<{ id: string; status: string }>(`/schedules/${id}/dispute`, {
+    method: "POST",
+  });
 }
 
 export function getBranding() {

@@ -30,18 +30,19 @@ const updateSchema = z
   .refine((b) => Object.keys(b).length > 0, { message: "no fields to update" })
 
 /**
- * All shift routes are HR-admin-only and tenant-scoped. As with departments,
+ * Shift WRITE routes are HR-admin-only and tenant-scoped. As with departments,
  * the tenant boundary is the load-bearing guard: every query is forced to
  * res.locals.tenantId (from the JWT) so an HR admin can only ever touch their
  * own tenant's shifts, even though supabaseAdmin bypasses RLS.
  */
 
-// GET /shifts — list this tenant's shifts.
+// GET /shifts — list this tenant's shifts. Readable by ANY tenant member
+// (matches the shifts_tenant_read RLS policy): employees need shift names to
+// render their 個人班表.
 shiftsRouter.get(
   "/shifts",
   requireAuth,
   requireTenant,
-  requireHrAdmin,
   async (_req: Request, res: Response, next: NextFunction) => {
     const tenantId = res.locals.tenantId as string
     try {

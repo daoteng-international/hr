@@ -156,6 +156,9 @@ afterAll(async () => {
     await supabaseAdmin.from("leave_types").delete().eq("tenant_id", tid)
   }
   for (const tid of createdTenantIds) {
+    await supabaseAdmin.from("punch_records").delete().eq("tenant_id", tid)
+  }
+  for (const tid of createdTenantIds) {
     await supabaseAdmin.from("employees").delete().eq("tenant_id", tid)
   }
   for (const tid of createdTenantIds) {
@@ -605,6 +608,135 @@ describe("F4 公出/出差 — business_trip rides the same approval pipeline", 
         endAt: "2027-02-01T09:00:00.000Z",
       })
     expect(res.status).toBe(400)
+  })
+})
+
+describe("F4 Apollo form-parity — payout / trip extras", () => {
+  it("business_trip stores tripType/location/remark/agentName and returns them on GET", async () => {
+    await request(app)
+      .put("/approval-flows/business_trip")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ approverEmpIds: [mgrId] })
+
+    const filed = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "business_trip",
+        startAt: "2027-03-01T01:00:00.000Z",
+        endAt: "2027-03-02T09:00:00.000Z",
+        tripType: "business_trip",
+        location: "台中客戶端",
+        remark: "含路程",
+        agentName: "B0001/王代理",
+        reason: "客戶商討",
+      })
+    expect(filed.status).toBe(201)
+
+    const list = await request(app).get("/requests").set("Authorization", `Bearer ${emp1Token}`)
+    const row = (list.body.requests as Array<Record<string, unknown>>).find(
+      (r) => r.id === filed.body.requestId,
+    )
+    expect(row?.trip_type).toBe("business_trip")
+    expect(row?.location).toBe("台中客戶端")
+    expect(row?.remark).toBe("含路程")
+    expect(row?.agent_name).toBe("B0001/王代理")
+  })
+
+  it("OT payout='pay' → NO comp-time credit on approval", async () => {
+    await request(app)
+      .put("/approval-flows/ot")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ approverEmpIds: [mgrId] })
+
+    const filed = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "ot",
+        startAt: "2027-04-01T10:00:00.000Z",
+        endAt: "2027-04-01T12:00:00.000Z",
+        hours: 2,
+        payout: "pay",
+      })
+    expect(filed.status).toBe(201)
+    const reqId = filed.body.requestId as string
+
+    const ok = await request(app)
+      .post(`/requests/${reqId}/approve`)
+      .set("Authorization", `Bearer ${mgrToken}`)
+      .send({})
+    expect(ok.status).toBe(200)
+
+    const { data } = await supabaseAdmin
+      .from("comp_time_ledger")
+      .select("id")
+      .eq("source_request_id", reqId)
+    expect(data?.length ?? 0).toBe(0)
+  })
+
+  it("OT payout='comp_time' → comp-time credited on approval", async () => {
+    const filed = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "ot",
+        startAt: "2027-04-02T10:00:00.000Z",
+        endAt: "2027-04-02T12:00:00.000Z",
+        hours: 2,
+        payout: "comp_time",
+      })
+    expect(filed.status).toBe(201)
+    const reqId = filed.body.requestId as string
+
+    const ok = await request(app)
+      .post(`/requests/${reqId}/approve`)
+      .set("Authorization", `Bearer ${mgrToken}`)
+      .send({})
+    expect(ok.status).toBe(200)
+
+    const { data } = await supabaseAdmin
+      .from("comp_time_ledger")
+      .select("hours_earned")
+      .eq("source_request_id", reqId)
+      .single()
+    expect(Number(data?.hours_earned)).toBe(2)
+  })
+})
+
+describe("F3 打卡補登 — POST /punch/manual (HR only)", () => {
+  it("HR back-fills a punch for an employee → 201, source='manual'", async () => {
+    const res = await request(app)
+      .post("/punch/manual")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ employeeId: emp1Id, punchAt: "2027-05-01T01:00:00.000Z", type: "in" })
+    expect(res.status).toBe(201)
+    const { data } = await supabaseAdmin
+      .from("punch_records")
+      .select("employee_id, source, type")
+      .eq("id", res.body.id)
+      .single()
+    expect(data?.employee_id).toBe(emp1Id)
+    expect(data?.source).toBe("manual")
+    expect(data?.type).toBe("in")
+  })
+
+  it("a normal employee cannot back-fill → 403; unknown employee → 404", async () => {
+    const denied = await request(app)
+      .post("/punch/manual")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({ employeeId: emp1Id, punchAt: "2027-05-01T02:00:00.000Z", type: "out" })
+    expect(denied.status).toBe(403)
+
+    const missing = await request(app)
+      .post("/punch/manual")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({
+        employeeId: "00000000-0000-0000-0000-000000000000",
+        punchAt: "2027-05-01T02:00:00.000Z",
+        type: "out",
+      })
+    expect(missing.status).toBe(404)
   })
 })
 

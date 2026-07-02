@@ -15,6 +15,8 @@ export interface ApprovedRequest {
   hours: string | number | null
   start_at: string
   end_at: string
+  /** OT 給付方式 the filer chose ('pay' | 'comp_time'); null/absent → rule config decides. */
+  payout?: string | null
 }
 
 /** Whole hours between two ISO timestamps (>= 0), used when a request omits an
@@ -169,6 +171,13 @@ export async function applyApprovalEffects(
 
     if (req.kind === "ot") {
       if (hours <= 0) return
+      // Explicit 給付方式 on the request wins (Apollo's 加班費/補休 choice);
+      // only when the filer didn't choose do we fall back to the rule config.
+      if (req.payout === "comp_time") {
+        await creditCompTime(supabase, tenantId, req, hours)
+        return
+      }
+      if (req.payout === "pay") return
       const rules = await loadRules(supabase, tenantId)
       if (overtimeIsCompTime(rules)) {
         await creditCompTime(supabase, tenantId, req, hours)

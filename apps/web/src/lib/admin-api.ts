@@ -490,6 +490,40 @@ export function updateCandidate(
   });
 }
 
+/* ------------------------------------------------- punch records (HR) --- */
+
+export interface PunchRecord {
+  id: string;
+  employee_id: string;
+  punch_at: string;
+  type: "in" | "out";
+  source: string | null;
+}
+
+export function getPunchRecordsAdmin(filters?: {
+  employeeId?: string;
+  from?: string;
+  to?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.employeeId) params.set("employeeId", filters.employeeId);
+  if (filters?.from) params.set("from", filters.from);
+  if (filters?.to) params.set("to", filters.to);
+  const qs = params.toString();
+  return apiFetch<{ records: PunchRecord[] }>(`/punch${qs ? `?${qs}` : ""}`);
+}
+
+export function createManualPunch(body: {
+  employeeId: string;
+  punchAt: string;
+  type: "in" | "out";
+}) {
+  return apiFetch<{ id: string }>("/punch/manual", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 /* ------------------------------------------------- payroll tax / 法規 --- */
 
 export interface NonEmployeeIncome {

@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import { requireAuth } from "../middleware/auth.js"
 import { requireTenant } from "../middleware/tenant.js"
+import { requireHrAdmin } from "../middleware/role.js"
 import { supabaseAdmin } from "../lib/supabase.js"
 
 export const punchRouter = Router()
@@ -248,6 +249,69 @@ punchRouter.get(
         return
       }
       res.status(200).json({ records: data ?? [] })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// 補登 body — HR back-fills a punch for an employee (Apollo 打卡紀錄維護's
+// 批次打卡補登/忘打卡補登). Explicit employeeId + timestamp + type.
+const manualSchema = z.object({
+  employeeId: z.string().uuid(),
+  punchAt: z.string().datetime(),
+  type: z.enum(["in", "out"]),
+})
+
+/**
+ * POST /punch/manual — HR-admin creates a punch record on someone's behalf
+ * (source='manual' so audits can tell back-fills from real punches). The target
+ * employee must belong to this tenant → otherwise 404.
+ */
+punchRouter.post(
+  "/punch/manual",
+  requireAuth,
+  requireTenant,
+  requireHrAdmin,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const parsed = manualSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+    const { employeeId, punchAt, type } = parsed.data
+    try {
+      const { data: emp, error: empErr } = await supabaseAdmin
+        .from("employees")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("id", employeeId)
+        .maybeSingle()
+      if (empErr) {
+        next(new Error(`POST /punch/manual (employee): ${empErr.message}`))
+        return
+      }
+      if (!emp) {
+        res.status(404).json({ error: "employee_not_found" })
+        return
+      }
+      const { data, error } = await supabaseAdmin
+        .from("punch_records")
+        .insert({
+          tenant_id: tenantId,
+          employee_id: employeeId,
+          punch_at: punchAt,
+          type,
+          source: "manual",
+        })
+        .select("id")
+        .single()
+      if (error || !data) {
+        next(new Error(`POST /punch/manual: ${error?.message}`))
+        return
+      }
+      res.status(201).json({ id: data.id })
     } catch (err) {
       next(err)
     }

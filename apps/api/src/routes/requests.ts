@@ -19,7 +19,13 @@ const createSchema = z.object({
   startAt: z.string().datetime(),
   endAt: z.string().datetime(),
   hours: z.number().optional(),
-  reason: z.string().trim().min(1).optional(),
+  reason: z.string().trim().min(1).max(250).optional(),
+  // Apollo form-parity extras (validated per kind below):
+  agentName: z.string().trim().min(1).optional(),
+  payout: z.enum(["pay", "comp_time"]).optional(),
+  tripType: z.enum(["outing", "business_trip"]).optional(),
+  location: z.string().trim().min(1).max(250).optional(),
+  remark: z.string().trim().max(250).optional(),
 })
 
 const decisionSchema = z.object({
@@ -31,7 +37,7 @@ const querySchema = z.object({
 })
 
 const REQUEST_COLS =
-  "id, tenant_id, employee_id, kind, leave_type_id, start_at, end_at, hours, reason, status, current_step, created_at"
+  "id, tenant_id, employee_id, kind, leave_type_id, start_at, end_at, hours, reason, agent_name, payout, trip_type, location, remark, status, current_step, created_at"
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
@@ -81,7 +87,8 @@ requestsRouter.post(
       res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
       return
     }
-    const { kind, leaveTypeId, startAt, endAt, hours, reason } = parsed.data
+    const { kind, leaveTypeId, startAt, endAt, hours, reason, agentName, payout, tripType, location, remark } =
+      parsed.data
 
     try {
       const self = await resolveSelf(tenantId, userId)
@@ -141,6 +148,11 @@ requestsRouter.post(
           end_at: endAt,
           hours: hours ?? null,
           reason: reason ?? null,
+          agent_name: agentName ?? null,
+          payout: kind === "ot" ? (payout ?? null) : null,
+          trip_type: kind === "business_trip" ? (tripType ?? null) : null,
+          location: kind === "business_trip" ? (location ?? null) : null,
+          remark: remark ?? null,
           status: "pending",
           current_step: 1,
         })
@@ -321,7 +333,7 @@ async function decide(
     const { data: lr, error: lrErr } = await supabaseAdmin
       .from("leave_requests")
       .select(
-        "id, status, current_step, employee_id, kind, leave_type_id, hours, start_at, end_at",
+        "id, status, current_step, employee_id, kind, leave_type_id, hours, start_at, end_at, payout",
       )
       .eq("tenant_id", tenantId)
       .eq("id", requestId)
@@ -438,6 +450,7 @@ async function decide(
       hours: lr.hours as string | number | null,
       start_at: lr.start_at as string,
       end_at: lr.end_at as string,
+      payout: (lr.payout as string | null) ?? null,
     })
 
     res.status(200).json({ status: "approved", currentStep: lr.current_step })

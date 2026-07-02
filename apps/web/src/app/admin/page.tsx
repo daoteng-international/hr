@@ -12,6 +12,7 @@ const LINKS: { href: string; label: string; desc: string }[] = [
   { href: "/admin/org-chart", label: "公司組織圖", desc: "部門階層樹狀圖" },
   { href: "/admin/shifts", label: "班別", desc: "上下班時間與夜班" },
   { href: "/admin/schedules", label: "排班", desc: "指派員工班別" },
+  { href: "/admin/punch-records", label: "打卡紀錄維護", desc: "查詢打卡與補登" },
   { href: "/admin/approvals", label: "簽核", desc: "待處理的請假／加班／補卡" },
   { href: "/admin/announcements", label: "公佈欄", desc: "發佈內部公告" },
   { href: "/admin/leave-types", label: "假別與簽核流程", desc: "假別與各類別簽核者" },

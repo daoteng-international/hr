@@ -68,6 +68,12 @@ function RequestsView() {
   const [endAt, setEndAt] = useState("");
   const [hours, setHours] = useState("");
   const [reason, setReason] = useState("");
+  // Apollo form-parity extras
+  const [agentName, setAgentName] = useState("");
+  const [payout, setPayout] = useState<"pay" | "comp_time">("pay");
+  const [tripType, setTripType] = useState<"outing" | "business_trip">("outing");
+  const [location, setLocation] = useState("");
+  const [remark, setRemark] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -118,6 +124,11 @@ function RequestsView() {
         endAt: toIso(endAt),
         hours: hours ? Number(hours) : undefined,
         reason: reason.trim() || undefined,
+        agentName: agentName.trim() || undefined,
+        payout: kind === "ot" ? payout : undefined,
+        tripType: kind === "business_trip" ? tripType : undefined,
+        location: kind === "business_trip" ? location.trim() || undefined : undefined,
+        remark: kind === "business_trip" ? remark.trim() || undefined : undefined,
       });
       // reset + refresh
       setLeaveTypeId("");
@@ -125,6 +136,11 @@ function RequestsView() {
       setEndAt("");
       setHours("");
       setReason("");
+      setAgentName("");
+      setPayout("pay");
+      setTripType("outing");
+      setLocation("");
+      setRemark("");
       await loadRequests();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "送出失敗");
@@ -224,6 +240,55 @@ function RequestsView() {
                 className={inputCls}
               />
             </div>
+
+            {kind === "ot" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">給付方式</label>
+                <div className="flex gap-6 text-sm text-gray-700">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="payout" checked={payout === "pay"} onChange={() => setPayout("pay")} />
+                    加班費
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="payout" checked={payout === "comp_time"} onChange={() => setPayout("comp_time")} />
+                    補休
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {kind === "business_trip" && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">類型</label>
+                  <div className="flex gap-6 text-sm text-gray-700">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="tripType" checked={tripType === "outing"} onChange={() => setTripType("outing")} />
+                      公出（一天以內）
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="tripType" checked={tripType === "business_trip"} onChange={() => setTripType("business_trip")} />
+                      出差（一天以上）
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">地點</label>
+                  <input maxLength={250} value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">備註（選填）</label>
+                  <input maxLength={250} value={remark} onChange={(e) => setRemark(e.target.value)} className={inputCls} />
+                </div>
+              </>
+            )}
+
+            {(kind === "leave" || kind === "business_trip") && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">代理人（工號或姓名，選填）</label>
+                <input value={agentName} onChange={(e) => setAgentName(e.target.value)} className={inputCls} />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">原因（選填）</label>
