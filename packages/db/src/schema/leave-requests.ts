@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, numeric } from "drizzle-orm/pg-core"
+import { pgTable, uuid, text, timestamp, integer, numeric, jsonb } from "drizzle-orm/pg-core"
 import { tenants } from "./tenants"
 import { employees } from "./employees"
 import { leaveTypes } from "./leave-types"
@@ -34,6 +34,9 @@ export const leaveRequests = pgTable("leave_requests", {
   tripType: text("trip_type"),
   location: text("location"),
   remark: text("remark"),
+  // 多段日期 (Apollo 新增列)：[{date, startTime, endTime, hours}]; null → 單段
+  // (start_at/end_at 為整體範圍，hours 為各段加總)。
+  segments: jsonb("segments"),
   status: text("status").notNull().default("pending"),
   currentStep: integer("current_step").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

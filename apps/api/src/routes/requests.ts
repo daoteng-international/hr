@@ -20,6 +20,21 @@ const createSchema = z.object({
   endAt: z.string().datetime(),
   hours: z.number().optional(),
   reason: z.string().trim().min(1).max(250).optional(),
+  // 代申請 (Apollo 本人/代申請): HR files FOR this employee. Non-HR callers 403.
+  onBehalfOfEmployeeId: z.string().uuid().optional(),
+  // 多段日期 (Apollo 新增列): individual day segments; hours should be their sum.
+  segments: z
+    .array(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        startTime: z.string().regex(/^\d{2}:\d{2}$/),
+        endTime: z.string().regex(/^\d{2}:\d{2}$/),
+        hours: z.number().nonnegative(),
+      }),
+    )
+    .min(1)
+    .max(31)
+    .optional(),
   // Apollo form-parity extras (validated per kind below):
   agentName: z.string().trim().min(1).optional(),
   payout: z.enum(["pay", "comp_time"]).optional(),
@@ -37,7 +52,7 @@ const querySchema = z.object({
 })
 
 const REQUEST_COLS =
-  "id, tenant_id, employee_id, kind, leave_type_id, start_at, end_at, hours, reason, agent_name, payout, trip_type, location, remark, status, current_step, created_at"
+  "id, tenant_id, employee_id, kind, leave_type_id, start_at, end_at, hours, reason, agent_name, payout, trip_type, location, remark, segments, status, current_step, created_at"
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
@@ -87,14 +102,54 @@ requestsRouter.post(
       res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
       return
     }
-    const { kind, leaveTypeId, startAt, endAt, hours, reason, agentName, payout, tripType, location, remark } =
-      parsed.data
+    const {
+      kind,
+      leaveTypeId,
+      startAt,
+      endAt,
+      hours,
+      reason,
+      agentName,
+      payout,
+      tripType,
+      location,
+      remark,
+      onBehalfOfEmployeeId,
+      segments,
+    } = parsed.data
 
     try {
       const self = await resolveSelf(tenantId, userId)
       if (!self) {
         res.status(403).json({ error: "not_an_employee" })
         return
+      }
+
+      // 代申請: only HR may file on someone else's behalf; the target must be a
+      // real employee of THIS tenant. The request is then owned by the target
+      // (they see it under 我的申請; approvals notify their chain), while the
+      // anti-spoofing rule for normal users is unchanged.
+      let filedForId = self.id
+      if (onBehalfOfEmployeeId && onBehalfOfEmployeeId !== self.id) {
+        if (!isHrRole(self.role)) {
+          res.status(403).json({ error: "proxy_filing_requires_hr" })
+          return
+        }
+        const { data: target, error: targetErr } = await supabaseAdmin
+          .from("employees")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("id", onBehalfOfEmployeeId)
+          .maybeSingle()
+        if (targetErr) {
+          next(new Error(`POST /requests (proxy target): ${targetErr.message}`))
+          return
+        }
+        if (!target) {
+          res.status(404).json({ error: "target_employee_not_found" })
+          return
+        }
+        filedForId = onBehalfOfEmployeeId
       }
 
       // Resolve the approver chain for this kind.
@@ -141,7 +196,7 @@ requestsRouter.post(
         .from("leave_requests")
         .insert({
           tenant_id: tenantId,
-          employee_id: self.id,
+          employee_id: filedForId,
           kind,
           leave_type_id: leaveTypeId ?? null,
           start_at: startAt,
@@ -153,6 +208,7 @@ requestsRouter.post(
           trip_type: kind === "business_trip" ? (tripType ?? null) : null,
           location: kind === "business_trip" ? (location ?? null) : null,
           remark: remark ?? null,
+          segments: segments ?? null,
           status: "pending",
           current_step: 1,
         })

@@ -97,6 +97,13 @@ export interface LeaveType {
   created_at: string;
 }
 
+export interface LeaveSegment {
+  date: string;
+  startTime: string;
+  endTime: string;
+  hours: number;
+}
+
 export interface CreateRequestBody {
   kind: RequestKind;
   leaveTypeId?: string;
@@ -104,6 +111,8 @@ export interface CreateRequestBody {
   endAt: string;
   hours?: number;
   reason?: string;
+  onBehalfOfEmployeeId?: string;
+  segments?: LeaveSegment[];
   // Apollo form-parity extras
   agentName?: string;
   payout?: "pay" | "comp_time";

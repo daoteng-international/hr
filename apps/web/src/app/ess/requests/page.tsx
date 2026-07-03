@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AuthGate } from "@/components/AuthGate";
 import { EssHeader } from "@/components/EssHeader";
+import { getEmployees, type Employee } from "@/lib/admin-api";
 import {
   getBranding,
   getRequests,
   createRequest,
   cancelRequest,
   getLeaveTypes,
+  getLeaveBalances,
   getMe,
   isAdminRole,
+  type LeaveBalance,
+  type LeaveSegment,
   type Branding,
   type LeaveRequest,
   type LeaveType,
@@ -76,6 +80,14 @@ function RequestsView() {
   const [remark, setRemark] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // 代申請 (HR only)
+  const [proxy, setProxy] = useState(false);
+  const [proxyEmpId, setProxyEmpId] = useState("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  // 即時餘額
+  const [balances, setBalances] = useState<LeaveBalance[]>([]);
+  // 多段日期
+  const [segments, setSegments] = useState<LeaveSegment[]>([]);
 
   const loadRequests = useCallback(async () => {
     const res = await getRequests();
@@ -94,7 +106,12 @@ function RequestsView() {
       if (!active) return;
       if (brandRes.status === "fulfilled") setBranding(brandRes.value.branding);
       if (ltRes.status === "fulfilled") setLeaveTypes(ltRes.value.leaveTypes);
-      if (meRes.status === "fulfilled") setIsAdmin(isAdminRole(meRes.value.role));
+      if (meRes.status === "fulfilled") {
+        const admin = isAdminRole(meRes.value.role);
+        setIsAdmin(admin);
+        if (admin) getEmployees().then((r) => setEmployees(r.employees)).catch(() => null);
+      }
+      getLeaveBalances().then((r) => setBalances(r.balances)).catch(() => null);
       try {
         await loadRequests();
       } catch (err) {
@@ -108,21 +125,65 @@ function RequestsView() {
     };
   }, [loadRequests]);
 
+  // 剩餘 X 時 X 分 for the currently selected leave type (across years).
+  function remainingFor(typeId: string): number | null {
+    const rows = balances.filter((b) => b.leave_type_id === typeId);
+    if (rows.length === 0) return null;
+    return rows.reduce(
+      (sum, b) => sum + Number(b.entitled) + Number(b.deferred) - Number(b.used),
+      0,
+    );
+  }
+  const fmtHours = (h: number) => `${Math.floor(h)} 時 ${Math.round((h - Math.floor(h)) * 60)} 分`;
+
+  const segHours = (a: string, b: string) => {
+    const [ah, am] = a.split(":").map(Number);
+    const [bh, bm] = b.split(":").map(Number);
+    return Math.max(0, Math.round(((bh * 60 + bm - ah * 60 - am) / 60) * 100) / 100);
+  };
+
+  function addSegment() {
+    setSegments((p) => [...p, { date: "", startTime: "09:00", endTime: "18:00", hours: 8 }]);
+  }
+  function updateSegment(i: number, patch: Partial<LeaveSegment>) {
+    setSegments((p) =>
+      p.map((seg, idx) => {
+        if (idx !== i) return seg;
+        const merged = { ...seg, ...patch };
+        merged.hours = segHours(merged.startTime, merged.endTime);
+        return merged;
+      }),
+    );
+  }
+  const segmentsTotal = segments.reduce((s, x) => s + x.hours, 0);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
-    if (!startAt || !endAt) {
+    const segMode = kind === "leave" && segments.length > 0;
+    if (segMode && segments.some((x) => !x.date)) {
+      setFormError("請填寫每個日期段的日期");
+      return;
+    }
+    if (!segMode && (!startAt || !endAt)) {
       setFormError("請填寫起訖時間");
       return;
     }
     setSubmitting(true);
     try {
+      const useSegs = kind === "leave" && segments.length > 0 && segments.every((x) => x.date);
       await createRequest({
         kind,
         leaveTypeId: kind === "leave" && leaveTypeId ? leaveTypeId : undefined,
-        startAt: toIso(startAt),
-        endAt: toIso(endAt),
-        hours: hours ? Number(hours) : undefined,
+        onBehalfOfEmployeeId: proxy && proxyEmpId ? proxyEmpId : undefined,
+        segments: useSegs ? segments : undefined,
+        startAt: useSegs
+          ? new Date(`${segments[0].date}T${segments[0].startTime}:00`).toISOString()
+          : toIso(startAt),
+        endAt: useSegs
+          ? new Date(`${segments[segments.length - 1].date}T${segments[segments.length - 1].endTime}:00`).toISOString()
+          : toIso(endAt),
+        hours: useSegs ? segmentsTotal : hours ? Number(hours) : undefined,
         reason: reason.trim() || undefined,
         agentName: agentName.trim() || undefined,
         payout: kind === "ot" ? payout : undefined,
@@ -137,6 +198,9 @@ function RequestsView() {
       setHours("");
       setReason("");
       setAgentName("");
+      setSegments([]);
+      setProxy(false);
+      setProxyEmpId("");
       setPayout("pay");
       setTripType("outing");
       setLocation("");
@@ -174,6 +238,30 @@ function RequestsView() {
         <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">新增申請</h2>
           <form onSubmit={onSubmit} className="space-y-4">
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">申請人</label>
+                <div className="flex items-center gap-6 text-sm text-gray-700">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="proxy" checked={!proxy} onChange={() => setProxy(false)} />
+                    本人
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="proxy" checked={proxy} onChange={() => setProxy(true)} />
+                    代申請
+                  </label>
+                  {proxy && (
+                    <select value={proxyEmpId} onChange={(e) => setProxyEmpId(e.target.value)} className={inputCls}>
+                      <option value="">請選擇員工</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">類型</label>
               <select
@@ -203,6 +291,50 @@ function RequestsView() {
                     </option>
                   ))}
                 </select>
+                {leaveTypeId && !proxy && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {remainingFor(leaveTypeId) == null
+                      ? "剩餘：－（尚未設定額度）"
+                      : `剩餘：${fmtHours(Math.max(0, remainingFor(leaveTypeId) ?? 0))}`}
+                    {(() => {
+                      const rem = remainingFor(leaveTypeId);
+                      const req = segments.length > 0 ? segmentsTotal : Number(hours) || 0;
+                      return rem != null && req > rem ? (
+                        <span className="ml-2 font-medium text-red-600">申請時數超過剩餘額度</span>
+                      ) : null;
+                    })()}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {kind === "leave" && (
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">日期段（多段請假）</label>
+                  <button type="button" onClick={addSegment} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                    ＋ 新增
+                  </button>
+                </div>
+                {segments.length === 0 ? (
+                  <p className="text-xs text-gray-400">未新增日期段時，使用下方單一起訖時間。</p>
+                ) : (
+                  <div className="space-y-2">
+                    {segments.map((seg, i) => (
+                      <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+                        <input type="date" value={seg.date} onChange={(e) => updateSegment(i, { date: e.target.value })} className="rounded-md border border-gray-300 px-2 py-1.5" />
+                        <input type="time" value={seg.startTime} onChange={(e) => updateSegment(i, { startTime: e.target.value })} className="rounded-md border border-gray-300 px-2 py-1.5" />
+                        <span>~</span>
+                        <input type="time" value={seg.endTime} onChange={(e) => updateSegment(i, { endTime: e.target.value })} className="rounded-md border border-gray-300 px-2 py-1.5" />
+                        <span className="text-xs text-gray-500">{seg.hours} 小時</span>
+                        <button type="button" onClick={() => setSegments((pv) => pv.filter((_, idx) => idx !== i))} className="text-xs text-red-600 hover:underline">
+                          移除
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-xs text-gray-600">總計：{segmentsTotal} 小時</p>
+                  </div>
+                )}
               </div>
             )}
 

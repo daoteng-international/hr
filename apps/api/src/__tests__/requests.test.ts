@@ -740,6 +740,70 @@ describe("F3 打卡補登 — POST /punch/manual (HR only)", () => {
   })
 })
 
+describe("F4 代申請 + 多段日期 (gap A/C)", () => {
+  it("HR files a leave ON BEHALF of emp1 with segments → owned by emp1", async () => {
+    await request(app)
+      .put("/approval-flows/leave")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({ approverEmpIds: [mgrId] })
+
+    const filed = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({
+        kind: "leave",
+        leaveTypeId: annualTypeId,
+        onBehalfOfEmployeeId: emp1Id,
+        startAt: "2027-06-01T01:00:00.000Z",
+        endAt: "2027-06-02T09:00:00.000Z",
+        hours: 16,
+        segments: [
+          { date: "2027-06-01", startTime: "09:00", endTime: "18:00", hours: 8 },
+          { date: "2027-06-02", startTime: "09:00", endTime: "18:00", hours: 8 },
+        ],
+      })
+    expect(filed.status).toBe(201)
+
+    const { data } = await supabaseAdmin
+      .from("leave_requests")
+      .select("employee_id, segments")
+      .eq("id", filed.body.requestId)
+      .single()
+    expect(data?.employee_id).toBe(emp1Id)
+    expect(Array.isArray(data?.segments)).toBe(true)
+    expect((data?.segments as unknown[]).length).toBe(2)
+  })
+
+  it("a normal employee cannot file on behalf of others → 403", async () => {
+    const res = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "leave",
+        leaveTypeId: annualTypeId,
+        onBehalfOfEmployeeId: mgrId,
+        startAt: "2027-06-03T01:00:00.000Z",
+        endAt: "2027-06-03T09:00:00.000Z",
+      })
+    expect(res.status).toBe(403)
+    expect(res.body.error).toBe("proxy_filing_requires_hr")
+  })
+
+  it("HR proxy-filing for a non-existent employee → 404", async () => {
+    const res = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${A.adminToken}`)
+      .send({
+        kind: "leave",
+        leaveTypeId: annualTypeId,
+        onBehalfOfEmployeeId: "00000000-0000-0000-0000-000000000000",
+        startAt: "2027-06-04T01:00:00.000Z",
+        endAt: "2027-06-04T09:00:00.000Z",
+      })
+    expect(res.status).toBe(404)
+  })
+})
+
 describe("F4 cross-tenant isolation", () => {
   it("A's HR can never see any of B's requests", async () => {
     // Seed a request in tenant B directly (rows only — no token needed).
