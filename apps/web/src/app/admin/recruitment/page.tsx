@@ -55,6 +55,7 @@ export default function RecruitmentPage() {
   const [title, setTitle] = useState("");
   const [headcount, setHeadcount] = useState("1");
   const [isInternal, setIsInternal] = useState(false);
+  const [needsApproval, setNeedsApproval] = useState(true);
 
   const [candName, setCandName] = useState("");
   const [candEmail, setCandEmail] = useState("");
@@ -93,7 +94,7 @@ export default function RecruitmentPage() {
         title: title.trim(),
         headcount: Number(headcount) || 1,
         isInternal,
-        status: "open",
+        status: needsApproval ? "pending_approval" : "open",
       });
       setTitle("");
       setHeadcount("1");
@@ -203,10 +204,16 @@ export default function RecruitmentPage() {
               <input className={inputCls} type="number" min={1} value={headcount} onChange={(e) => setHeadcount(e.target.value)} />
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} />
-            內部職缺（員工可見）
-          </label>
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} />
+              內部職缺（員工可見）
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={needsApproval} onChange={(e) => setNeedsApproval(e.target.checked)} />
+              送審核（待審核職缺需求單）
+            </label>
+          </div>
           <PrimaryButton type="submit">新增職缺</PrimaryButton>
         </form>
       </Card>
@@ -226,7 +233,7 @@ export default function RecruitmentPage() {
                   <span className="text-xs text-gray-500">需 {r.headcount} 人</span>
                   {r.is_internal && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">內部</span>}
                   <span className={`rounded-full px-2 py-0.5 text-xs ${r.status === "open" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                    {r.status === "open" ? "開放中" : r.status === "closed" ? "已關閉" : "草稿"}
+                    {r.status === "open" ? "開放中" : r.status === "closed" ? "已關閉" : r.status === "pending_approval" ? "待審核" : "草稿"}
                   </span>
                 </div>
                 <div className="flex shrink-0 gap-3">
@@ -301,6 +308,72 @@ export default function RecruitmentPage() {
             ))}
           </ul>
         )}
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">待審核職缺需求單 / 待審核錄用申請單</h2>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-gray-600">職缺需求單（待審核）</h3>
+            <ul className="divide-y divide-gray-100 text-sm">
+              {reqs.filter((r) => r.status === "pending_approval").map((r) => (
+                <li key={r.id} className="flex items-center justify-between py-2">
+                  <span className="font-medium text-gray-800">{r.title} <span className="text-xs text-gray-500">需 {r.headcount} 人</span></span>
+                  <span className="flex gap-3">
+                    <button onClick={() => updateJobRequisition(r.id, { status: "open" }).then(load)} className="font-medium" style={{ color: "var(--brand)" }}>核准開缺</button>
+                    <button onClick={() => updateJobRequisition(r.id, { status: "draft" }).then(load)} className="text-red-600 hover:underline">退回</button>
+                  </span>
+                </li>
+              ))}
+              {reqs.filter((r) => r.status === "pending_approval").length === 0 && <li className="py-2 text-gray-400">無待審核</li>}
+            </ul>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-gray-600">錄用申請單（待審核）</h3>
+            <ul className="divide-y divide-gray-100 text-sm">
+              {offers.filter((o) => o.status === "draft").map((o) => (
+                <li key={o.id} className="flex items-center justify-between py-2">
+                  <span className="font-medium text-gray-800">{candidateLabel(o.candidate_id)} {o.salary && <span className="text-xs text-gray-500">核薪 {o.salary}</span>}</span>
+                  <span className="flex gap-3">
+                    <button onClick={() => updateOffer(o.id, { status: "approved" }).then(load)} className="font-medium" style={{ color: "var(--brand)" }}>核准</button>
+                    <button onClick={() => updateOffer(o.id, { status: "declined" }).then(load)} className="text-red-600 hover:underline">退回</button>
+                  </span>
+                </li>
+              ))}
+              {offers.filter((o) => o.status === "draft").length === 0 && <li className="py-2 text-gray-400">無待審核</li>}
+            </ul>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">公司面試行事曆</h2>
+        {(() => {
+          const dated = interviews.filter((iv) => iv.scheduled_at);
+          if (dated.length === 0) return <Empty>尚無已排程面試</Empty>;
+          const byDate = new Map<string, typeof dated>();
+          for (const iv of dated) {
+            const d = (iv.scheduled_at as string).slice(0, 10);
+            byDate.set(d, [...(byDate.get(d) ?? []), iv]);
+          }
+          return (
+            <div className="space-y-3">
+              {Array.from(byDate.entries()).sort(([a], [b]) => (a < b ? -1 : 1)).map(([date, list]) => (
+                <div key={date}>
+                  <p className="mb-1 text-sm font-semibold text-gray-700">{date}</p>
+                  <ul className="ml-3 space-y-1 text-sm text-gray-600">
+                    {list.map((iv) => (
+                      <li key={iv.id}>
+                        {(iv.scheduled_at as string).slice(11, 16)}｜{candidateLabel(iv.candidate_id)}
+                        {iv.stage ? `（${iv.stage}）` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </Card>
 
       <Card>

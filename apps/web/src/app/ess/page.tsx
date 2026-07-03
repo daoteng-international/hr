@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { EssHeader } from "@/components/EssHeader";
 import {
   getBranding,
   getPunchToday,
   getAnnouncements,
+  getRequests,
   postPunch,
   getMe,
   isAdminRole,
@@ -40,6 +42,9 @@ function EssHome() {
   const [records, setRecords] = useState<PunchRecord[]>([]);
   const [status, setStatus] = useState<"working" | "off">("off");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [punching, setPunching] = useState(false);
@@ -63,6 +68,12 @@ function EssHome() {
       if (!active) return;
       if (brandRes.status === "fulfilled") setBranding(brandRes.value.branding);
       if (annRes.status === "fulfilled") setAnnouncements(annRes.value.announcements);
+      getRequests("pending").then((r) => setPendingCount(r.requests.length)).catch(() => null);
+      try {
+        setNote(localStorage.getItem("ess-sticky-note") ?? "");
+      } catch {
+        /* private mode */
+      }
       if (meRes.status === "fulfilled") setIsAdmin(isAdminRole(meRes.value.role));
       try {
         await loadPunch();
@@ -169,6 +180,63 @@ function EssHome() {
         </section>
 
         {/* Announcements */}
+        {/* LinkUp 我的快捷 */}
+        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-gray-800">我的快捷</h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            {[
+              { label: "請假", href: "/ess/requests" },
+              { label: "加班", href: "/ess/requests" },
+              { label: "忘打卡申請", href: "/ess/requests" },
+              { label: "公出/出差", href: "/ess/requests" },
+              { label: "個人班表", href: "/ess/schedule" },
+              { label: "打卡紀錄", href: "/ess/punches" },
+              { label: "剩餘假別", href: "/ess/balances" },
+              { label: "我的薪資單", href: "/ess/payslips" },
+              { label: "內部職缺", href: "/ess/jobs" },
+              { label: "我的資料", href: "/ess/mydata" },
+            ].map((q) => (
+              <button
+                key={q.label}
+                onClick={() => router.push(q.href)}
+                className="rounded-lg border border-gray-100 bg-gray-50 px-2 py-3 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* LinkUp 待辦 + 便利貼 */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-2 text-lg font-semibold text-gray-800">待辦事項</h2>
+            <button onClick={() => router.push("/ess/requests")} className="text-sm text-gray-600 hover:underline">
+              進行中的申請/待我簽核：
+              <span className="ml-1 font-bold" style={{ color: "var(--brand)" }}>
+                {pendingCount ?? "—"}
+              </span>{" "}
+              筆
+            </button>
+          </section>
+          <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-2 text-lg font-semibold text-gray-800">便利貼</h2>
+            <textarea
+              value={note}
+              onChange={(e) => {
+                setNote(e.target.value);
+                try {
+                  localStorage.setItem("ess-sticky-note", e.target.value);
+                } catch {
+                  /* ignore */
+                }
+              }}
+              placeholder="寫點什麼…（只存在這台裝置）"
+              className="h-20 w-full resize-none rounded-md border border-yellow-200 bg-yellow-50 p-2 text-sm focus:outline-none"
+            />
+          </section>
+        </div>
+
         <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">最新公告</h2>
           {loading ? (

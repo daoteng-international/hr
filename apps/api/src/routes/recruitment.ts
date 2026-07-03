@@ -173,7 +173,7 @@ hrCrud({
     headcount: z.number().int().positive().optional(),
     employmentType: optStr,
     description: optStr,
-    status: z.enum(["draft", "open", "closed"]).optional(),
+    status: z.enum(["draft", "pending_approval", "open", "closed"]).optional(),
     isInternal: z.boolean().optional(),
   }),
   update: z.object({
@@ -181,7 +181,7 @@ hrCrud({
     deptId: z.string().uuid().nullable().optional(),
     headcount: z.number().int().positive().optional(),
     description: z.string().trim().nullable().optional(),
-    status: z.enum(["draft", "open", "closed"]).optional(),
+    status: z.enum(["draft", "pending_approval", "open", "closed"]).optional(),
     isInternal: z.boolean().optional(),
   }),
   toRow: (d) => ({

@@ -413,7 +413,7 @@ export interface JobRequisition {
   headcount: number;
   employment_type: string;
   description: string | null;
-  status: "draft" | "open" | "closed";
+  status: "draft" | "pending_approval" | "open" | "closed";
   is_internal: boolean;
   created_at: string;
 }
@@ -439,7 +439,7 @@ export function createJobRequisition(body: {
   title: string;
   headcount?: number;
   isInternal?: boolean;
-  status?: "draft" | "open" | "closed";
+  status?: "draft" | "pending_approval" | "open" | "closed";
   description?: string;
 }) {
   return apiFetch<{ id: string }>("/job-requisitions", {
@@ -450,7 +450,7 @@ export function createJobRequisition(body: {
 
 export function updateJobRequisition(
   id: string,
-  body: { status?: "draft" | "open" | "closed"; isInternal?: boolean },
+  body: { status?: "draft" | "pending_approval" | "open" | "closed"; isInternal?: boolean },
 ) {
   return apiFetch<{ id: string }>(`/job-requisitions/${id}`, {
     method: "PATCH",
