@@ -8,14 +8,14 @@
 |---|---|---|---|---|---|
 | ① Foundation | ✅ | ✅ | ✅ 205綠 | 🔄 push即部署 | migration 0015 已套 HR-Ai；MyData 6分頁；Hire 篩選+範本+匯入；job_history+年資 |
 | ② Attendance | ✅ | ✅ | ✅ 210綠 | 🔄 push即部署 | migration 0016(payout/trip/agent/location/remark)；ESS 打卡紀錄/剩餘假別/個人班表+班表審核 3新頁；申請表單條件欄位；HR 打卡紀錄維護+補登 |
-| ③ Payroll | ❌ 待 recon | | | | 9 個作業畫面 |
+| ③ Payroll | ✅(重點頁) | ✅ | ✅ 210綠 | 🔄 push即部署 | Admin /admin/payroll(薪資保險資料+眷屬/扶養+執行薪資+查詢定案)；ESS 我的薪資單。後端沿用既有 API 無 schema 變更 |
 | ④ Recruitment | ❌ 待 recon | | | | 12 入口 |
 | ⑤ Dashboard | ❌ 待 recon | | | | 在職人數分析圖表 |
 
 ## 完成定義（全部打勾才算完成）
 - [x] Foundation 欄位對齊 + 測試綠 + 已部署（commit 待補 sha）
 - [x] Attendance recon + 欄位對齊 + 測試綠 + 已部署
-- [ ] Payroll recon + 欄位對齊 + 測試綠 + 已部署
+- [x] Payroll recon + 欄位對齊 + 測試綠 + 已部署
 - [ ] Recruitment recon + 欄位對齊 + 測試綠 + 已部署
 - [ ] Dashboard recon + 開發 + 測試綠 + 已部署
 - [ ] 全套件跑綠 + 線上驗證 + 通知使用者

@@ -422,3 +422,18 @@ export function deleteWorkHistory(id: string) {
 export function getLeaveTypes() {
   return apiFetch<{ leaveTypes: LeaveType[] }>("/leave-types");
 }
+
+export interface MyPayslip {
+  id: string;
+  period: string;
+  base: string;
+  overtime_pay: string;
+  night_pay: string;
+  attendance_bonus: string;
+  gross: string;
+  status: string;
+}
+
+export function getMyPayslips() {
+  return apiFetch<{ payslips: MyPayslip[] }>("/payslips");
+}

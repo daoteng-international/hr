@@ -80,3 +80,8 @@ tabs: 打卡紀錄/曠職；上下班/休息/外出｜異常。篩選: 資料類
 
 ### 其他入口
 待審核表單 /ta/personal/approvementlist；表單申請紀錄 /ta/personal/(applicationrecords)；表單紀錄管理 /ta/manager/formrecordmanage；忘打卡申請=彈窗表單。
+
+## Payroll（薪資）— recon 2026-07-02（重點頁）
+- 員工薪資保險資料 (/payroll/masterdata/salary)：搜尋式頁（員工工號/身分證字號/姓名 → 帶出個人薪資+保險主檔）。
+- 選單結構：待辦作業｜薪資/保險資料（員工薪資保險資料/健保眷屬投保資料/所得稅扶養親屬資料/批次調薪）｜薪資/獎金作業（執行/查詢列印）｜所得稅/補充保費（非員工資料/其他所得申報/所得稅作業/補充保費作業）｜報表中心｜設定｜我的薪資單。
+- 對應實作：/admin/payroll（薪資保險資料 per-employee 編輯＋健保眷屬＋扶養親屬＋執行薪資作業＋薪資單查詢/定案）、/admin/payroll-tax（批次調薪/非員工所得/補充保費試算）、ESS /ess/payslips（我的薪資單）。

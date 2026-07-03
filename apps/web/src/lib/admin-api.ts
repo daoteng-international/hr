@@ -607,3 +607,119 @@ export function getBranding() {
     "/api/tenant/branding",
   );
 }
+
+/* --------------------------------------------------- payroll (薪資作業) --- */
+
+export interface SalaryStructure {
+  id: string;
+  employee_id: string;
+  method: "monthly" | "by_attendance_days";
+  base_salary: string | null;
+  daily_wage: string | null;
+  hourly_wage: string;
+  allowances: Record<string, unknown>;
+}
+
+export function getSalaryStructure(employeeId: string) {
+  return apiFetch<{ salary: SalaryStructure }>(`/salary/${employeeId}`);
+}
+
+export function putSalaryStructure(
+  employeeId: string,
+  body: {
+    method?: "monthly" | "by_attendance_days";
+    baseSalary?: number | null;
+    dailyWage?: number | null;
+    hourlyWage?: number;
+  },
+) {
+  return apiFetch<{ id: string }>(`/salary/${employeeId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface Payslip {
+  id: string;
+  employee_id: string;
+  period: string;
+  base: string;
+  overtime_pay: string;
+  night_pay: string;
+  attendance_bonus: string;
+  gross: string;
+  status: string;
+}
+
+export function runPayroll(period: string, employeeId?: string) {
+  return apiFetch<{ payslips?: unknown[]; count?: number }>(`/payroll/run`, {
+    method: "POST",
+    body: JSON.stringify({ period, employeeId }),
+  });
+}
+
+export function getPayslips(period?: string) {
+  const qs = period ? `?period=${period}` : "";
+  return apiFetch<{ payslips: Payslip[] }>(`/payslips${qs}`);
+}
+
+export function finalizePayslip(id: string) {
+  return apiFetch<{ id: string; status: string }>(`/payslips/${id}/finalize`, {
+    method: "POST",
+  });
+}
+
+export interface NhiDependent {
+  id: string;
+  employee_id: string;
+  name: string;
+  relationship: string | null;
+  insured: boolean;
+}
+
+export function getNhiDependents(employeeId: string) {
+  return apiFetch<{ "nhi-dependents": NhiDependent[] }>(
+    `/nhi-dependents?employeeId=${employeeId}`,
+  );
+}
+
+export function addNhiDependent(body: { employeeId: string; name: string; relationship?: string }) {
+  return apiFetch<{ id: string }>("/nhi-dependents", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteNhiDependent(id: string) {
+  return apiFetch<{ id: string }>(`/nhi-dependents/${id}`, { method: "DELETE" });
+}
+
+export interface TaxDependent {
+  id: string;
+  employee_id: string;
+  name: string;
+  relationship: string | null;
+  birth_year: number | null;
+}
+
+export function getTaxDependents(employeeId: string) {
+  return apiFetch<{ "income-tax-dependents": TaxDependent[] }>(
+    `/income-tax-dependents?employeeId=${employeeId}`,
+  );
+}
+
+export function addTaxDependent(body: {
+  employeeId: string;
+  name: string;
+  relationship?: string;
+  birthYear?: number;
+}) {
+  return apiFetch<{ id: string }>("/income-tax-dependents", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteTaxDependent(id: string) {
+  return apiFetch<{ id: string }>(`/income-tax-dependents/${id}`, { method: "DELETE" });
+}
