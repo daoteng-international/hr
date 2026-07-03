@@ -789,3 +789,28 @@ export function updateOffer(id: string, body: { status?: Offer["status"]; note?:
     body: JSON.stringify(body),
   });
 }
+
+/* ----------------------------------------------------------- dashboard --- */
+
+export interface HeadcountMonth {
+  month: string;
+  opening: number;
+  hires: number;
+  exits: number;
+  closing: number;
+}
+
+export function getHeadcount(params: {
+  from: string;
+  to: string;
+  deptId?: string;
+  employmentType?: string;
+}) {
+  const qs = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.deptId) qs.set("deptId", params.deptId);
+  if (params.employmentType) qs.set("employmentType", params.employmentType);
+  return apiFetch<{
+    series: HeadcountMonth[];
+    totals: { opening: number; hires: number; exits: number; closing: number };
+  }>(`/dashboard/headcount?${qs.toString()}`);
+}

@@ -19,5 +19,7 @@ export const employees = pgTable("employees", {
   hireDate: date("hire_date"),
   role: text("role").notNull().default("employee"),
   status: text("status").notNull().default("active"),
+  // 離職日 — set when the employee is deactivated; drives Dashboard 離職 counts.
+  terminatedAt: date("terminated_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })

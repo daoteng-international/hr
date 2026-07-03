@@ -28,6 +28,7 @@ import { onboardingsRouter } from "./routes/onboardings.js"
 import { employeeProfileRouter } from "./routes/employee-profile.js"
 import { recruitmentRouter } from "./routes/recruitment.js"
 import { payrollTaxRouter } from "./routes/payroll-tax.js"
+import { dashboardRouter } from "./routes/dashboard.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -78,6 +79,7 @@ app.use(onboardingsRouter)
 app.use(employeeProfileRouter)
 app.use(recruitmentRouter)
 app.use(payrollTaxRouter)
+app.use(dashboardRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {

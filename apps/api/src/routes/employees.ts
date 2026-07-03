@@ -189,7 +189,7 @@ employeesRouter.post(
     try {
       const { data, error } = await supabaseAdmin
         .from("employees")
-        .update({ status: "inactive" })
+        .update({ status: "inactive", terminated_at: new Date().toISOString().slice(0, 10) })
         .eq("tenant_id", tenantId)
         .eq("id", id)
         .select("id")

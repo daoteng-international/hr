@@ -6,6 +6,7 @@ import { Card, PageHeader, Empty } from "@/components/admin-ui";
 import { getRequests } from "@/lib/admin-api";
 
 const LINKS: { href: string; label: string; desc: string }[] = [
+  { href: "/admin/dashboard", label: "Dashboard", desc: "在職人數分析" },
   { href: "/admin/employees", label: "員工", desc: "邀請、編輯、停用員工" },
   { href: "/admin/onboarding", label: "報到管理", desc: "新進人員報到與建檔" },
   { href: "/admin/departments", label: "部門", desc: "組織架構維護" },
