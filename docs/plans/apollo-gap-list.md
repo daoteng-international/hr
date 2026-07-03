@@ -7,8 +7,8 @@
 - [x] A 代申請 — HR 可替員工送出申請（表單 本人/代申請 切換，HR 才可見）
 - [x] B 表單內即時餘額驗證 — 請假選假別即顯示「剩餘 X 時 X 分」＋超額警示
 - [x] C 多段日期請假 — 一張申請單多個日期段（segments jsonb），總時數加總
-- [ ] D 附件上傳 — 請假/公出 ×3 檔案 ≤3MB（Supabase Storage + request_attachments 表）
-- [ ] E 個人班表月曆化 — 月曆格狀檢視
+- [x] D 附件上傳 — 請假/公出 ×3 檔案 ≤3MB（Supabase Storage + request_attachments 表）
+- [x] E 個人班表月曆化 — 月曆格狀檢視
 - [x] F 打卡紀錄 休息/外出/異常 — punch type 擴充 break/outing ＋ 異常(缺卡)頁籤
 - [x] G 薪資投保級距 — salary_structures 加 勞保/健保投保級距欄位＋UI
 - [x] H 薪資單列印 — 列印友善薪資單明細（含 breakdown）

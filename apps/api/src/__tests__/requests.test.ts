@@ -144,6 +144,9 @@ afterAll(async () => {
     await supabaseAdmin.from("leave_balances").delete().eq("tenant_id", tid)
   }
   for (const tid of createdTenantIds) {
+    await supabaseAdmin.from("request_attachments").delete().eq("tenant_id", tid)
+  }
+  for (const tid of createdTenantIds) {
     await supabaseAdmin.from("approval_steps").delete().eq("tenant_id", tid)
   }
   for (const tid of createdTenantIds) {
@@ -801,6 +804,62 @@ describe("F4 代申請 + 多段日期 (gap A/C)", () => {
         endAt: "2027-06-04T09:00:00.000Z",
       })
     expect(res.status).toBe(404)
+  })
+})
+
+describe("F4 附件上傳 (gap D)", () => {
+  let reqId: string
+  const b64 = Buffer.from("hello attachment").toString("base64")
+
+  it("filer uploads an attachment; list returns a signed URL", async () => {
+    const filed = await request(app)
+      .post("/requests")
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({
+        kind: "leave",
+        leaveTypeId: annualTypeId,
+        startAt: "2027-07-01T01:00:00.000Z",
+        endAt: "2027-07-01T09:00:00.000Z",
+      })
+    expect(filed.status).toBe(201)
+    reqId = filed.body.requestId
+
+    const up = await request(app)
+      .post(`/requests/${reqId}/attachments`)
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({ fileName: "診斷證明.txt", contentType: "text/plain", dataBase64: b64 })
+    expect(up.status).toBe(201)
+    expect(up.body.sizeBytes).toBe(16)
+
+    const list = await request(app)
+      .get(`/requests/${reqId}/attachments`)
+      .set("Authorization", `Bearer ${emp1Token}`)
+    expect(list.status).toBe(200)
+    expect(list.body.attachments.length).toBe(1)
+    expect(list.body.attachments[0].fileName).toBe("診斷證明.txt")
+    expect(String(list.body.attachments[0].url)).toContain("http")
+  })
+
+  it("an unrelated employee cannot see the attachments → 403", async () => {
+    const res = await request(app)
+      .get(`/requests/${reqId}/attachments`)
+      .set("Authorization", `Bearer ${emp2Token}`)
+    expect(res.status).toBe(403)
+  })
+
+  it("4th file → 409 max_files_reached", async () => {
+    for (let i = 0; i < 2; i++) {
+      const r = await request(app)
+        .post(`/requests/${reqId}/attachments`)
+        .set("Authorization", `Bearer ${emp1Token}`)
+        .send({ fileName: `f${i}.txt`, contentType: "text/plain", dataBase64: b64 })
+      expect(r.status).toBe(201)
+    }
+    const fourth = await request(app)
+      .post(`/requests/${reqId}/attachments`)
+      .set("Authorization", `Bearer ${emp1Token}`)
+      .send({ fileName: "f3.txt", contentType: "text/plain", dataBase64: b64 })
+    expect(fourth.status).toBe(409)
   })
 })
 

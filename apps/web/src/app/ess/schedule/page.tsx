@@ -94,6 +94,57 @@ function ScheduleInner() {
           <p className="mb-4 text-sm text-gray-500">
             本月排班 {workDays} 天｜排休 {offDays} 天
           </p>
+
+          {/* 月曆格狀 (Apollo 個人班表) */}
+          <div className="mb-6">
+            <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500">
+              {["日", "一", "二", "三", "四", "五", "六"].map((d) => (
+                <div key={d} className="py-1">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {(() => {
+                const [yy, mm] = ym.split("-").map(Number);
+                const first = new Date(Date.UTC(yy, mm - 1, 1));
+                const lead = first.getUTCDay();
+                const daysInMonth = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+                const cells: (number | null)[] = [
+                  ...Array.from({ length: lead }, () => null),
+                  ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+                ];
+                while (cells.length % 7 !== 0) cells.push(null);
+                const byDate = new Map(rows.map((r) => [r.work_date, r]));
+                return cells.map((day, i) => {
+                  if (day == null) return <div key={i} className="h-16 rounded bg-gray-50/50" />;
+                  const date = `${ym}-${String(day).padStart(2, "0")}`;
+                  const row = byDate.get(date);
+                  const shift = row ? shifts.find((x) => x.id === row.shift_id) : undefined;
+                  return (
+                    <div
+                      key={i}
+                      className={`h-16 overflow-hidden rounded border p-1 text-left ${
+                        row
+                          ? row.status === "disputed"
+                            ? "border-red-200 bg-red-50"
+                            : row.status === "confirmed"
+                              ? "border-green-200 bg-green-50"
+                              : "border-gray-200 bg-white"
+                          : "border-gray-100 bg-gray-50/50"
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-gray-700">{day}</p>
+                      {row && (
+                        <p className="mt-0.5 truncate text-[10px] leading-tight text-gray-600">
+                          {row.status === "day_off" ? "排休" : shift ? `${shift.name}` : "—"}
+                          {shift && <span className="block text-gray-400">{shift.start_time}~{shift.end_time}</span>}
+                        </p>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
           <ul className="divide-y divide-gray-100">
             {rows.map((r) => (

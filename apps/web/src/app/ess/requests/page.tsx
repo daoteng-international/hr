@@ -13,6 +13,7 @@ import {
   getLeaveBalances,
   getMe,
   isAdminRole,
+  uploadAttachment,
   type LeaveBalance,
   type LeaveSegment,
   type Branding,
@@ -88,6 +89,8 @@ function RequestsView() {
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   // 多段日期
   const [segments, setSegments] = useState<LeaveSegment[]>([]);
+  // 附件 (≤3 × ≤3MB)
+  const [files, setFiles] = useState<File[]>([]);
 
   const loadRequests = useCallback(async () => {
     const res = await getRequests();
@@ -169,10 +172,18 @@ function RequestsView() {
       setFormError("請填寫起訖時間");
       return;
     }
+    if (files.length > 3) {
+      setFormError("附件最多 3 個");
+      return;
+    }
+    if (files.some((f) => f.size > 3 * 1024 * 1024)) {
+      setFormError("附件單檔限 3 MB");
+      return;
+    }
     setSubmitting(true);
     try {
       const useSegs = kind === "leave" && segments.length > 0 && segments.every((x) => x.date);
-      await createRequest({
+      const created = await createRequest({
         kind,
         leaveTypeId: kind === "leave" && leaveTypeId ? leaveTypeId : undefined,
         onBehalfOfEmployeeId: proxy && proxyEmpId ? proxyEmpId : undefined,
@@ -191,6 +202,10 @@ function RequestsView() {
         location: kind === "business_trip" ? location.trim() || undefined : undefined,
         remark: kind === "business_trip" ? remark.trim() || undefined : undefined,
       });
+      for (const f of files) {
+        await uploadAttachment(created.requestId, f);
+      }
+      setFiles([]);
       // reset + refresh
       setLeaveTypeId("");
       setStartAt("");
@@ -419,6 +434,21 @@ function RequestsView() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">代理人（工號或姓名，選填）</label>
                 <input value={agentName} onChange={(e) => setAgentName(e.target.value)} className={inputCls} />
+              </div>
+            )}
+
+            {(kind === "leave" || kind === "business_trip") && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">附件（最多 3 個，單檔 3 MB）</label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 3))}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm"
+                />
+                {files.length > 0 && (
+                  <p className="mt-1 text-xs text-gray-500">{files.map((f) => f.name).join("、")}</p>
+                )}
               </div>
             )}
 

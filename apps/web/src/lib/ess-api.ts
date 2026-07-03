@@ -460,3 +460,17 @@ export interface InternalJob {
 export function getInternalJobs() {
   return apiFetch<{ internalJobs: InternalJob[] }>("/internal-jobs");
 }
+
+/** Upload one attachment (≤3MB) to a request as base64 JSON. */
+export async function uploadAttachment(requestId: string, file: File): Promise<void> {
+  const dataBase64 = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = () => reject(new Error("讀取檔案失敗"));
+    r.readAsDataURL(file);
+  });
+  await apiFetch<{ id: string }>(`/requests/${requestId}/attachments`, {
+    method: "POST",
+    body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream", dataBase64 }),
+  });
+}
