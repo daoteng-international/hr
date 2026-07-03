@@ -723,3 +723,69 @@ export function addTaxDependent(body: {
 export function deleteTaxDependent(id: string) {
   return apiFetch<{ id: string }>(`/income-tax-dependents/${id}`, { method: "DELETE" });
 }
+
+/* ------------------------------------------------ recruitment: 面試/錄用 --- */
+
+export interface Interview {
+  id: string;
+  candidate_id: string;
+  interviewer_emp_id: string | null;
+  scheduled_at: string | null;
+  stage: string | null;
+  result: "pending" | "pass" | "fail";
+  notes: string | null;
+}
+
+export function getInterviews(candidateId?: string) {
+  const qs = candidateId ? `?candidateId=${candidateId}` : "";
+  return apiFetch<{ interviews: Interview[] }>(`/interviews${qs}`);
+}
+
+export function createInterview(body: {
+  candidateId: string;
+  scheduledAt?: string;
+  stage?: string;
+  interviewerEmpId?: string | null;
+}) {
+  return apiFetch<{ id: string }>("/interviews", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateInterview(
+  id: string,
+  body: { result?: "pending" | "pass" | "fail"; notes?: string; scheduledAt?: string },
+) {
+  return apiFetch<{ id: string }>(`/interviews/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface Offer {
+  id: string;
+  candidate_id: string;
+  salary: string | null;
+  start_date: string | null;
+  status: "draft" | "approved" | "sent" | "accepted" | "declined";
+  note: string | null;
+}
+
+export function getOffers() {
+  return apiFetch<{ offers: Offer[] }>("/offers");
+}
+
+export function createOffer(body: { candidateId: string; salary?: number; startDate?: string }) {
+  return apiFetch<{ id: string }>("/offers", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateOffer(id: string, body: { status?: Offer["status"]; note?: string }) {
+  return apiFetch<{ id: string }>(`/offers/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}

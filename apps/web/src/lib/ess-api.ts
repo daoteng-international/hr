@@ -437,3 +437,17 @@ export interface MyPayslip {
 export function getMyPayslips() {
   return apiFetch<{ payslips: MyPayslip[] }>("/payslips");
 }
+
+export interface InternalJob {
+  id: string;
+  title: string;
+  dept_id: string | null;
+  headcount: number;
+  employment_type: string;
+  description: string | null;
+  created_at: string;
+}
+
+export function getInternalJobs() {
+  return apiFetch<{ internalJobs: InternalJob[] }>("/internal-jobs");
+}

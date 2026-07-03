@@ -10,9 +10,26 @@ import {
   getCandidates,
   createCandidate,
   updateCandidate,
+  getInterviews,
+  createInterview,
+  updateInterview,
+  getOffers,
+  createOffer,
+  updateOffer,
   type JobRequisition,
   type Candidate,
+  type Interview,
+  type Offer,
 } from "@/lib/admin-api";
+
+const OFFER_STATUSES: Offer["status"][] = ["draft", "approved", "sent", "accepted", "declined"];
+const OFFER_LABEL: Record<Offer["status"], string> = {
+  draft: "草稿",
+  approved: "已核准",
+  sent: "已寄出",
+  accepted: "已接受",
+  declined: "已婉拒",
+};
 
 const inputCls =
   "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none";
@@ -30,6 +47,8 @@ const CAND_STATUSES: Candidate["status"][] = [
 export default function RecruitmentPage() {
   const [reqs, setReqs] = useState<JobRequisition[]>([]);
   const [cands, setCands] = useState<Candidate[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,9 +63,16 @@ export default function RecruitmentPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, c] = await Promise.all([getJobRequisitions(), getCandidates()]);
+      const [r, c, iv, of] = await Promise.all([
+        getJobRequisitions(),
+        getCandidates(),
+        getInterviews(),
+        getOffers(),
+      ]);
       setReqs(r["job-requisitions"]);
       setCands(c.candidates);
+      setInterviews(iv.interviews);
+      setOffers(of.offers);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
@@ -115,6 +141,48 @@ export default function RecruitmentPage() {
   }
 
   const reqTitle = (id: string | null) => reqs.find((r) => r.id === id)?.title ?? "—";
+  const candidateLabel = (id: string) => cands.find((c) => c.id === id)?.name ?? id.slice(0, 8);
+
+  async function scheduleInterview(candidateId: string) {
+    const when = prompt("面試時間？(YYYY-MM-DD HH:mm)");
+    if (!when) return;
+    const stage = prompt("階段？(一面/二面…可留空)") ?? undefined;
+    try {
+      await createInterview({
+        candidateId,
+        scheduledAt: new Date(when.replace(" ", "T")).toISOString(),
+        stage: stage || undefined,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "安排面試失敗");
+    }
+  }
+
+  async function recordInterview(id: string, result: "pass" | "fail") {
+    const notes = prompt("面試紀錄（可留空）") ?? undefined;
+    try {
+      await updateInterview(id, { result, notes: notes || undefined });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "更新失敗");
+    }
+  }
+
+  async function extendOffer(candidateId: string) {
+    const salary = prompt("核薪金額？");
+    const startDate = prompt("預定到職日？(YYYY-MM-DD，可留空)") ?? "";
+    try {
+      await createOffer({
+        candidateId,
+        salary: salary ? Number(salary) : undefined,
+        startDate: startDate || undefined,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "建立錄用單失敗");
+    }
+  }
 
   return (
     <>
@@ -216,13 +284,75 @@ export default function RecruitmentPage() {
                   {c.email && <span className="text-xs text-gray-500">{c.email}</span>}
                   <span className="text-xs text-gray-400">{reqTitle(c.requisition_id)}</span>
                 </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <button onClick={() => scheduleInterview(c.id)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>安排面試</button>
+                  <button onClick={() => extendOffer(c.id)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>發錄用單</button>
+                  <select
+                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    value={c.status}
+                    onChange={(e) => changeCandStatus(c.id, e.target.value as Candidate["status"])}
+                  >
+                    {CAND_STATUSES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">面試行事曆 / 面試紀錄</h2>
+        <p className="mb-3 text-xs text-gray-400">在人才庫對人才按「安排面試」即可加入行事曆；面試後記錄結果。</p>
+        {interviews.length === 0 ? (
+          <Empty>尚無面試</Empty>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {interviews.map((iv) => (
+              <li key={iv.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-800">{candidateLabel(iv.candidate_id)}</span>
+                  <span className="text-gray-500">{iv.scheduled_at ? iv.scheduled_at.replace("T", " ").slice(0, 16) : "未定時間"}</span>
+                  {iv.stage && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{iv.stage}</span>}
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${iv.result === "pass" ? "bg-green-100 text-green-700" : iv.result === "fail" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                    {iv.result === "pass" ? "通過" : iv.result === "fail" ? "未通過" : "待面試"}
+                  </span>
+                  {iv.notes && <span className="text-xs text-gray-400">{iv.notes}</span>}
+                </div>
+                {iv.result === "pending" && (
+                  <div className="flex shrink-0 gap-3">
+                    <button onClick={() => recordInterview(iv.id, "pass")} className="text-sm font-medium" style={{ color: "var(--brand)" }}>通過</button>
+                    <button onClick={() => recordInterview(iv.id, "fail")} className="text-sm text-red-600 hover:underline">未通過</button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">錄用申請單 / 錄用通知單</h2>
+        {offers.length === 0 ? (
+          <Empty>尚無錄用單</Empty>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {offers.map((o) => (
+              <li key={o.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-800">{candidateLabel(o.candidate_id)}</span>
+                  {o.salary && <span className="text-gray-500">核薪 {o.salary}</span>}
+                  {o.start_date && <span className="text-xs text-gray-400">到職 {o.start_date}</span>}
+                </div>
                 <select
                   className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-                  value={c.status}
-                  onChange={(e) => changeCandStatus(c.id, e.target.value as Candidate["status"])}
+                  value={o.status}
+                  onChange={(e) => updateOffer(o.id, { status: e.target.value as Offer["status"] }).then(load)}
                 >
-                  {CAND_STATUSES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                  {OFFER_STATUSES.map((st) => (
+                    <option key={st} value={st}>{OFFER_LABEL[st]}</option>
                   ))}
                 </select>
               </li>
