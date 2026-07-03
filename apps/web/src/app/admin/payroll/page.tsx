@@ -8,6 +8,7 @@ import {
   putSalaryStructure,
   runPayroll,
   getPayslips,
+  getPayslip,
   finalizePayslip,
   getNhiDependents,
   addNhiDependent,
@@ -34,6 +35,8 @@ export default function PayrollAdminPage() {
   const [method, setMethod] = useState<"monthly" | "by_attendance_days">("monthly");
   const [baseSalary, setBaseSalary] = useState("");
   const [hourlyWage, setHourlyWage] = useState("");
+  const [laborGrade, setLaborGrade] = useState("");
+  const [healthGrade, setHealthGrade] = useState("");
   const [salaryMsg, setSalaryMsg] = useState<string | null>(null);
   const [nhiDeps, setNhiDeps] = useState<NhiDependent[]>([]);
   const [taxDeps, setTaxDeps] = useState<TaxDependent[]>([]);
@@ -62,10 +65,15 @@ export default function PayrollAdminPage() {
       setMethod(salary.method);
       setBaseSalary(salary.base_salary ?? "");
       setHourlyWage(salary.hourly_wage ?? "");
+      const sx = salary as unknown as Record<string, string | null>;
+      setLaborGrade(sx.labor_insured_salary ?? "");
+      setHealthGrade(sx.health_insured_salary ?? "");
     } catch {
       setMethod("monthly");
       setBaseSalary("");
       setHourlyWage("");
+      setLaborGrade("");
+      setHealthGrade("");
     }
     try {
       const [nhi, tax] = await Promise.all([getNhiDependents(id), getTaxDependents(id)]);
@@ -89,7 +97,9 @@ export default function PayrollAdminPage() {
         method,
         baseSalary: baseSalary ? Number(baseSalary) : null,
         hourlyWage: hourlyWage ? Number(hourlyWage) : 0,
-      });
+        laborInsuredSalary: laborGrade ? Number(laborGrade) : null,
+        healthInsuredSalary: healthGrade ? Number(healthGrade) : null,
+      } as Parameters<typeof putSalaryStructure>[1] & { laborInsuredSalary?: number | null; healthInsuredSalary?: number | null });
       setSalaryMsg("已儲存");
     } catch (err) {
       setSalaryMsg(err instanceof Error ? err.message : "儲存失敗");
@@ -142,6 +152,28 @@ export default function PayrollAdminPage() {
 
   const empName = (id: string) => employees.find((e) => e.id === id)?.name ?? id.slice(0, 8);
 
+  async function printPayslip(id: string) {
+    try {
+      const { payslip } = await getPayslip(id);
+      const bd = JSON.stringify(payslip.breakdown ?? {}, null, 2);
+      const w = window.open("", "_blank", "width=720,height=900");
+      if (!w) return;
+      w.document.write(`<!doctype html><html><head><title>薪資單 ${payslip.period}</title>
+<style>body{font-family:ui-sans-serif,system-ui,'Noto Sans TC';padding:32px;color:#111}
+h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:16px}
+td,th{border:1px solid #ddd;padding:8px;text-align:left;font-size:14px}
+pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head><body>
+<h1>薪資單 — ${empName(payslip.employee_id)}（${payslip.period}）</h1>
+<table><tr><th>本薪</th><th>加班費</th><th>夜間加給</th><th>全勤獎金</th><th>應發合計</th></tr>
+<tr><td>${payslip.base}</td><td>${payslip.overtime_pay}</td><td>${payslip.night_pay}</td><td>${payslip.attendance_bonus}</td><td><b>${payslip.gross}</b></td></tr></table>
+<h2 style="font-size:15px;margin-top:20px">計算明細</h2><pre>${bd.replace(/</g, "&lt;")}</pre>
+<script>window.print()</script></body></html>`);
+      w.document.close();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "列印失敗");
+    }
+  }
+
   return (
     <>
       <PageHeader title="薪資作業" desc="員工薪資保險資料、執行薪資作業與薪資單查詢" />
@@ -180,6 +212,14 @@ export default function PayrollAdminPage() {
                 <div>
                   <label className={labelCls}>時薪（加班費基準）</label>
                   <input type="number" className={inputCls} value={hourlyWage} onChange={(e) => setHourlyWage(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelCls}>勞保投保級距</label>
+                  <input type="number" className={inputCls} value={laborGrade} onChange={(e) => setLaborGrade(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelCls}>健保投保級距</label>
+                  <input type="number" className={inputCls} value={healthGrade} onChange={(e) => setHealthGrade(e.target.value)} />
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -275,6 +315,9 @@ export default function PayrollAdminPage() {
                       </span>
                     </td>
                     <td className="py-2">
+                      <button onClick={() => printPayslip(p.id)} className="mr-3 text-sm text-gray-600 hover:underline">
+                        列印
+                      </button>
                       {p.status !== "finalized" && (
                         <button
                           onClick={() => finalizePayslip(p.id).then(() => loadPayslips())}

@@ -8,7 +8,7 @@ import { supabaseAdmin } from "../lib/supabase.js"
 export const salaryRouter = Router()
 
 const SELECT_COLS =
-  "id, tenant_id, employee_id, method, base_salary, daily_wage, hourly_wage, allowances, created_at"
+  "id, tenant_id, employee_id, method, base_salary, daily_wage, hourly_wage, allowances, labor_insured_salary, health_insured_salary, created_at"
 
 // Numeric columns are returned by PostgREST as strings; the client coerces.
 const upsertSchema = z
@@ -18,6 +18,8 @@ const upsertSchema = z
     dailyWage: z.number().nullable().optional(),
     hourlyWage: z.number().optional(),
     allowances: z.record(z.unknown()).optional(),
+    laborInsuredSalary: z.number().nullable().optional(),
+    healthInsuredSalary: z.number().nullable().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, { message: "no fields to update" })
 
@@ -85,6 +87,10 @@ salaryRouter.put(
     if (parsed.data.dailyWage !== undefined) row.daily_wage = parsed.data.dailyWage
     if (parsed.data.hourlyWage !== undefined) row.hourly_wage = parsed.data.hourlyWage
     if (parsed.data.allowances !== undefined) row.allowances = parsed.data.allowances
+    if (parsed.data.laborInsuredSalary !== undefined)
+      row.labor_insured_salary = parsed.data.laborInsuredSalary
+    if (parsed.data.healthInsuredSalary !== undefined)
+      row.health_insured_salary = parsed.data.healthInsuredSalary
 
     try {
       const { data, error } = await supabaseAdmin

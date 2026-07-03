@@ -814,3 +814,11 @@ export function getHeadcount(params: {
     totals: { opening: number; hires: number; exits: number; closing: number };
   }>(`/dashboard/headcount?${qs.toString()}`);
 }
+
+export function getPayslip(id: string) {
+  return apiFetch<{ payslip: Payslip & { breakdown: unknown } }>(`/payslips/${id}`);
+}
+
+export function exportTaxFilingUrl(type: "withholding" | "supplementary") {
+  return `/tax-filing/export?type=${type}`;
+}

@@ -51,6 +51,7 @@ afterAll(async () => {
       "income_tax_dependents",
       "salary_adjustments",
       "non_employee_income",
+      "salary_structures",
     ]) {
       await supabaseAdmin.from(t).delete().eq("tenant_id", tid)
     }
@@ -134,6 +135,33 @@ describe("F-Tax 資料表 CRUD", () => {
     expect(res.status).toBe(201)
     expect(res.body.supplementaryPremium).toBe(1055)
     expect(res.body.taxWithheld).toBe(5000)
+  })
+
+  it("gap G: insured grades roundtrip on salary structure", async () => {
+    const put = await request(app)
+      .put(`/salary/${empId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ baseSalary: 40000, hourlyWage: 200, laborInsuredSalary: 40100, healthInsuredSalary: 40100 })
+    expect(put.status).toBe(200)
+    const get = await request(app)
+      .get(`/salary/${empId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+    expect(get.status).toBe(200)
+    expect(Number(get.body.salary.labor_insured_salary)).toBe(40100)
+    expect(Number(get.body.salary.health_insured_salary)).toBe(40100)
+  })
+
+  it("gap I: tax-filing export returns CSV with the seeded payee", async () => {
+    const res = await request(app)
+      .get("/tax-filing/export?type=withholding")
+      .set("Authorization", `Bearer ${adminToken}`)
+    expect(res.status).toBe(200)
+    expect(res.headers["content-type"]).toContain("text/csv")
+    expect(res.text).toContain("講師甲")
+    const bad = await request(app)
+      .get("/tax-filing/export?type=nope")
+      .set("Authorization", `Bearer ${adminToken}`)
+    expect(bad.status).toBe(400)
   })
 
   it("non-HR employee blocked from payroll-tax resources → 403", async () => {

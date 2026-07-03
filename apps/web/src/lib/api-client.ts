@@ -56,3 +56,26 @@ export async function apiFetch<T>(
 
 // Back-compat alias for existing callers.
 export const apiClient = apiFetch;
+
+/**
+ * Download an authenticated file (e.g. CSV export): fetches with the bearer
+ * token and triggers a browser download. Throws on non-2xx.
+ */
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const token = await (async () => {
+    const supabase = getSupabaseBrowser();
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  })();
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`下載失敗 (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

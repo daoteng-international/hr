@@ -13,7 +13,9 @@ const dateRe = /^\d{4}-\d{2}-\d{2}$/
 const punchSchema = z.object({
   // type is optional — when omitted we infer it from the employee's last punch
   // today (none / last 'out' → 'in'; last 'in' → 'out').
-  type: z.enum(["in", "out"]).optional(),
+  // Work in/out plus Apollo's 休息/外出 pairs. Inference (omitted type) only
+  // applies to work in/out; break/outing must be explicit.
+  type: z.enum(["in", "out", "break_in", "break_out", "outing_in", "outing_out"]).optional(),
   source: z.enum(["gps", "web", "line"]).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
@@ -110,6 +112,7 @@ punchRouter.post(
           .select("type")
           .eq("tenant_id", tenantId)
           .eq("employee_id", self.id)
+          .in("type", ["in", "out"]) // break/outing punches don't flip work state
           .gte("punch_at", start)
           .lt("punch_at", end)
           .order("punch_at", { ascending: false })
@@ -260,7 +263,7 @@ punchRouter.get(
 const manualSchema = z.object({
   employeeId: z.string().uuid(),
   punchAt: z.string().datetime(),
-  type: z.enum(["in", "out"]),
+  type: z.enum(["in", "out", "break_in", "break_out", "outing_in", "outing_out"]),
 })
 
 /**

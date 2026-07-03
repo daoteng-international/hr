@@ -45,10 +45,22 @@ function groupByDay(records: PunchHistoryRecord[]): DayRow[] {
 
 const hhmm = (iso: string) => iso.slice(11, 16);
 
+const TABS = ["上下班", "休息", "外出", "異常"] as const;
+type Tab = (typeof TABS)[number];
+
+// Map tab → the punch-type pair to show.
+const TAB_TYPES: Record<Exclude<Tab, "異常">, [string, string]> = {
+  上下班: ["in", "out"],
+  休息: ["break_in", "break_out"],
+  外出: ["outing_in", "outing_out"],
+};
+
 function PunchesInner() {
   const [branding, setBranding] = useState<Branding | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [rows, setRows] = useState<DayRow[]>([]);
+  const [all, setAll] = useState<PunchHistoryRecord[]>([]);
+  const [tab, setTab] = useState<Tab>("上下班");
   const [error, setError] = useState<string | null>(null);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -59,7 +71,7 @@ function PunchesInner() {
   const load = useCallback(async () => {
     try {
       const res = await getPunchRecords(from, to);
-      setRows(groupByDay(res.records));
+      setAll(res.records);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
@@ -72,12 +84,42 @@ function PunchesInner() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (tab === "異常") {
+      // 異常: work days missing an in or an out.
+      const days = groupByDay(
+        all
+          .filter((r) => r.type === "in" || r.type === "out")
+          .map((r) => ({ ...r, type: r.type as "in" | "out" })),
+      );
+      setRows(days.filter((d) => !d.in || !d.out));
+      return;
+    }
+    const [tin, tout] = TAB_TYPES[tab];
+    const mapped = all
+      .filter((r) => r.type === tin || r.type === tout)
+      .map((r) => ({ ...r, type: (r.type === tin ? "in" : "out") as "in" | "out" }));
+    setRows(groupByDay(mapped));
+  }, [all, tab]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="punches" isAdmin={isAdmin} />
       <main className="mx-auto max-w-3xl space-y-4 p-4">
         <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-800">打卡紀錄</h2>
+          <h2 className="mb-3 text-lg font-semibold text-gray-800">打卡紀錄</h2>
+          <nav className="mb-4 flex gap-1 border-b border-gray-100 pb-2">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                style={tab === t ? { backgroundColor: "var(--brand)" } : undefined}
+              >
+                {t}
+              </button>
+            ))}
+          </nav>
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">查詢日期（起）</label>

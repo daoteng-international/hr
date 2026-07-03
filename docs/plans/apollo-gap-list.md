@@ -9,10 +9,10 @@
 - [x] C 多段日期請假 — 一張申請單多個日期段（segments jsonb），總時數加總
 - [ ] D 附件上傳 — 請假/公出 ×3 檔案 ≤3MB（Supabase Storage + request_attachments 表）
 - [ ] E 個人班表月曆化 — 月曆格狀檢視
-- [ ] F 打卡紀錄 休息/外出/異常 — punch type 擴充 break/outing ＋ 異常(缺卡)頁籤
-- [ ] G 薪資投保級距 — salary_structures 加 勞保/健保投保級距欄位＋UI
-- [ ] H 薪資單列印 — 列印友善薪資單明細（含 breakdown）
-- [ ] I 申報作業產出 — 扣繳/補充保費 CSV 匯出
+- [x] F 打卡紀錄 休息/外出/異常 — punch type 擴充 break/outing ＋ 異常(缺卡)頁籤
+- [x] G 薪資投保級距 — salary_structures 加 勞保/健保投保級距欄位＋UI
+- [x] H 薪資單列印 — 列印友善薪資單明細（含 breakdown）
+- [x] I 申報作業產出 — 扣繳/補充保費 CSV 匯出
 - [ ] J 招募簽核流 — 職缺需求單/錄用單 待審核→核准 佇列
 - [ ] K 公司面試行事曆 — 全公司面試按日分組檢視
 - [ ] L LinkUp 入口 — ESS 首頁升級：我的快捷/待辦事項/便利貼/最新公告

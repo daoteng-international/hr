@@ -401,3 +401,63 @@ payrollTaxRouter.post(
     })
   },
 )
+
+/**
+ * GET /tax-filing/export?type=withholding|supplementary — 申報作業 CSV 匯出.
+ * withholding: 非員工所得扣繳明細 (payee/id/type/amount/tax_withheld/pay_date).
+ * supplementary: 補充保費明細 (payee/type/amount/supplementary_premium/pay_date).
+ * HR-only; returns text/csv with a BOM so Excel opens UTF-8 correctly.
+ */
+payrollTaxRouter.get(
+  "/tax-filing/export",
+  requireAuth,
+  requireTenant,
+  requireHrAdmin,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const type = req.query.type
+    if (type !== "withholding" && type !== "supplementary") {
+      res.status(400).json({ error: "type must be withholding|supplementary" })
+      return
+    }
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("non_employee_income")
+        .select("payee_name, id_number, income_type, amount, tax_withheld, supplementary_premium, pay_date")
+        .eq("tenant_id", tenantId)
+        .order("pay_date", { ascending: true })
+      if (error) {
+        next(new Error(`GET /tax-filing/export: ${error.message}`))
+        return
+      }
+      const rows = data ?? []
+      const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
+      let csv: string
+      if (type === "withholding") {
+        csv =
+          "受款人,身分證字號,所得類別,給付金額,扣繳稅額,給付日期\n" +
+          rows
+            .map((r) =>
+              [r.payee_name, r.id_number, r.income_type, r.amount, r.tax_withheld, r.pay_date].map(esc).join(","),
+            )
+            .join("\n")
+      } else {
+        csv =
+          "受款人,所得類別,給付金額,補充保費,給付日期\n" +
+          rows
+            .filter((r) => Number(r.supplementary_premium) > 0)
+            .map((r) =>
+              [r.payee_name, r.income_type, r.amount, r.supplementary_premium, r.pay_date].map(esc).join(","),
+            )
+            .join("\n")
+      }
+      res
+        .status(200)
+        .type("text/csv; charset=utf-8")
+        .attachment(`tax-filing-${type}.csv`)
+        .send("﻿" + csv)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
