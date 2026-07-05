@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, PageHeader, Empty } from "@/components/admin-ui";
-import { getRequests } from "@/lib/admin-api";
+import { getBranding, getRequests } from "@/lib/admin-api";
 
 const LINKS: { href: string; label: string; desc: string; module: string }[] = [
   { href: "/admin/dashboard", label: "Dashboard", desc: "在職人數分析", module: "Dashboard" },
@@ -30,6 +30,7 @@ const LINKS: { href: string; label: string; desc: string; module: string }[] = [
 
 export default function AdminOverview() {
   const [pending, setPending] = useState<number | null>(null);
+  const [widgets, setWidgets] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,10 +42,27 @@ export default function AdminOverview() {
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "載入待簽核數失敗");
       });
+    getBranding()
+      .then((res) => {
+        if (active) setWidgets(res.features?.dashboardWidgets ?? []);
+      })
+      .catch(() => null);
     return () => {
       active = false;
     };
   }, []);
+
+  const visibleLinks =
+    widgets.length === 0
+      ? LINKS
+      : LINKS.filter((link) => {
+          if (widgets.includes("待簽核申請") && link.href === "/admin/approvals") return true;
+          if (widgets.includes("期末在職") && link.href === "/admin/dashboard") return true;
+          if (widgets.includes("新進/離職") && link.href === "/admin/onboarding") return true;
+          if (widgets.includes("公告") && link.href === "/admin/announcements") return true;
+          if (widgets.includes("薪資作業") && link.href === "/admin/payroll") return true;
+          return !["/admin/approvals", "/admin/dashboard", "/admin/onboarding", "/admin/announcements", "/admin/payroll"].includes(link.href);
+        });
 
   return (
     <>
@@ -72,7 +90,7 @@ export default function AdminOverview() {
       <Card>
         <h2 className="mb-4 text-sm font-medium text-gray-500">快捷連結</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {LINKS.map((l) => (
+          {visibleLinks.map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -84,7 +102,7 @@ export default function AdminOverview() {
             </Link>
           ))}
         </div>
-        {LINKS.length === 0 && <Empty>無快捷連結</Empty>}
+        {visibleLinks.length === 0 && <Empty>無快捷連結</Empty>}
       </Card>
     </>
   );

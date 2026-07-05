@@ -17,6 +17,13 @@ import {
   type Announcement,
 } from "@/lib/ess-api";
 
+interface InternalLink {
+  name: string;
+  url: string;
+  enabled?: boolean;
+  sort?: number;
+}
+
 function timeOf(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
@@ -42,6 +49,7 @@ function EssHome() {
   const [records, setRecords] = useState<PunchRecord[]>([]);
   const [status, setStatus] = useState<"working" | "off">("off");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [internalLinks, setInternalLinks] = useState<InternalLink[]>([]);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const router = useRouter();
@@ -66,7 +74,13 @@ function EssHome() {
         getMe(),
       ]);
       if (!active) return;
-      if (brandRes.status === "fulfilled") setBranding(brandRes.value.branding);
+      if (brandRes.status === "fulfilled") {
+        setBranding(brandRes.value.branding);
+        const links = ((brandRes.value.features?.internalLinks as InternalLink[] | undefined) ?? [])
+          .filter((link) => link.enabled !== false)
+          .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+        setInternalLinks(links);
+      }
       if (annRes.status === "fulfilled") setAnnouncements(annRes.value.announcements);
       getRequests("pending").then((r) => setPendingCount(r.requests.length)).catch(() => null);
       try {
@@ -205,6 +219,24 @@ function EssHome() {
               </button>
             ))}
           </div>
+          {internalLinks.length > 0 && (
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <h3 className="mb-3 text-sm font-medium text-gray-500">內部連結</h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {internalLinks.map((link) => (
+                  <a
+                    key={`${link.name}-${link.url}`}
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    {link.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* LinkUp 待辦 + 便利貼 */}

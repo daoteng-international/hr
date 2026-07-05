@@ -613,9 +613,45 @@ export interface Branding {
   logoUrl?: string;
 }
 
+export interface TenantPermission {
+  module: string;
+  unit: string;
+  desc?: string;
+  account?: string;
+  enabled?: boolean;
+}
+
+export interface InternalLink {
+  name: string;
+  url: string;
+  enabled?: boolean;
+  sort?: number;
+}
+
+export interface TenantFeatures {
+  permissions?: TenantPermission[];
+  internalLinks?: InternalLink[];
+  dashboardWidgets?: string[];
+  site?: {
+    employeePortalPath?: string;
+    adminPortalPath?: string;
+  };
+  [key: string]: unknown;
+}
+
 export function getBranding() {
-  return apiFetch<{ branding: Branding | null; features: Record<string, unknown> | null }>(
+  return apiFetch<{ branding: Branding | null; features: TenantFeatures | null }>(
     "/api/tenant/branding",
+  );
+}
+
+export function saveTenantSettings(body: {
+  branding?: Branding;
+  features?: TenantFeatures;
+}) {
+  return apiFetch<{ branding: Branding | null; features: TenantFeatures | null }>(
+    "/api/tenant/settings",
+    { method: "PUT", body: JSON.stringify(body) },
   );
 }
 

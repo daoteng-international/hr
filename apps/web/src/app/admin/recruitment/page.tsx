@@ -185,11 +185,75 @@ export default function RecruitmentPage() {
     }
   }
 
+  function downloadRecruitmentReport() {
+    const candidateByReq = new Map<string, number>();
+    for (const candidate of cands) {
+      const key = candidate.requisition_id ?? "(none)";
+      candidateByReq.set(key, (candidateByReq.get(key) ?? 0) + 1);
+    }
+    const rows = [
+      ["類型", "項目", "數量"],
+      ["職缺", "總職缺", String(reqs.length)],
+      ["職缺", "開放中", String(reqs.filter((req) => req.status === "open").length)],
+      ["職缺", "待審核", String(reqs.filter((req) => req.status === "pending_approval").length)],
+      ["人才", "總人才", String(cands.length)],
+      ...CAND_STATUSES.map((status) => [
+        "人才狀態",
+        status,
+        String(cands.filter((candidate) => candidate.status === status).length),
+      ]),
+      ["面試", "已排程", String(interviews.filter((interview) => interview.scheduled_at).length)],
+      ["面試", "通過", String(interviews.filter((interview) => interview.result === "pass").length)],
+      ["面試", "未通過", String(interviews.filter((interview) => interview.result === "fail").length)],
+      ...OFFER_STATUSES.map((status) => [
+        "錄用狀態",
+        OFFER_LABEL[status],
+        String(offers.filter((offer) => offer.status === status).length),
+      ]),
+      ...Array.from(candidateByReq.entries()).map(([reqId, count]) => [
+        "職缺人才數",
+        reqTitle(reqId),
+        String(count),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "招募報表.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <>
       <PageHeader title="招募" desc="職缺需求單與人才庫" />
 
       {error && <div className="mb-3"><ErrorText>{error}</ErrorText></div>}
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-medium text-gray-500">招募報表中心</h2>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {[
+                { label: "職缺", value: reqs.length },
+                { label: "人才", value: cands.length },
+                { label: "面試", value: interviews.length },
+                { label: "錄用單", value: offers.length },
+                { label: "待審", value: reqs.filter((r) => r.status === "pending_approval").length + offers.filter((o) => o.status === "draft").length },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg bg-gray-50 px-4 py-3">
+                  <p className="text-xs text-gray-500">{item.label}</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <PrimaryButton onClick={downloadRecruitmentReport}>下載報表</PrimaryButton>
+        </div>
+      </Card>
 
       <Card>
         <h2 className="mb-4 text-sm font-medium text-gray-500">新增職缺</h2>
