@@ -46,7 +46,7 @@ employeesRouter.get(
     try {
       const { data, error } = await supabaseAdmin
         .from("employees")
-        .select("id, tenant_id, user_id, name, role, employment_type, status, created_at")
+        .select("id, tenant_id, user_id, name, role, dept_id, emp_no, employment_type, status, created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: true })
 

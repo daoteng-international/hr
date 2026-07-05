@@ -27,6 +27,9 @@ const punchSchema = z.object({
 
 const querySchema = z.object({
   employeeId: z.string().uuid().optional(),
+  deptId: z.string().uuid().optional(),
+  type: z.enum(["in", "out", "break_in", "break_out", "outing_in", "outing_out"]).optional(),
+  source: z.enum(["gps", "web", "line", "manual"]).optional(),
   from: z.string().regex(dateRe).optional(),
   to: z.string().regex(dateRe).optional(),
 })
@@ -227,7 +230,7 @@ punchRouter.get(
       res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() })
       return
     }
-    const { employeeId, from, to } = parsed.data
+    const { employeeId, deptId, type, source, from, to } = parsed.data
 
     try {
       const self = await resolveSelf(tenantId, userId)
@@ -237,12 +240,27 @@ punchRouter.get(
 
       if (isHr) {
         if (employeeId) query = query.eq("employee_id", employeeId)
+        if (deptId) {
+          const { data: deptEmployees, error: deptErr } = await supabaseAdmin
+            .from("employees")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .eq("dept_id", deptId)
+          if (deptErr) {
+            next(new Error(`GET /punch (dept employees): ${deptErr.message}`))
+            return
+          }
+          const ids = (deptEmployees ?? []).map((employee) => employee.id as string)
+          query = ids.length > 0 ? query.in("employee_id", ids) : query.eq("employee_id", "00000000-0000-0000-0000-000000000000")
+        }
       } else {
         // Non-HR: always pinned to self. No employee row → impossible filter →
         // empty result (never another user's data).
         query = query.eq("employee_id", self?.id ?? "00000000-0000-0000-0000-000000000000")
       }
 
+      if (type) query = query.eq("type", type)
+      if (source) query = query.eq("source", source)
       if (from) query = query.gte("punch_at", `${from}T00:00:00.000Z`)
       if (to) query = query.lte("punch_at", `${to}T23:59:59.999Z`)
 

@@ -7,15 +7,54 @@ import { AdminGate } from "@/components/AdminGate";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { getBranding, type Branding, type Me } from "@/lib/admin-api";
 
-const NAV: { href: string; label: string }[] = [
-  { href: "/admin", label: "總覽" },
-  { href: "/admin/departments", label: "部門" },
-  { href: "/admin/employees", label: "員工" },
-  { href: "/admin/shifts", label: "班別" },
-  { href: "/admin/schedules", label: "排班" },
-  { href: "/admin/approvals", label: "簽核" },
-  { href: "/admin/announcements", label: "公佈欄" },
-  { href: "/admin/leave-types", label: "假別與簽核流程" },
+const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
+  {
+    title: "LinkUp",
+    items: [
+      { href: "/admin", label: "後台總覽" },
+      { href: "/admin/announcements", label: "最新消息 / 公告" },
+      { href: "/admin/company-space", label: "Company Space" },
+    ],
+  },
+  {
+    title: "Dashboard",
+    items: [{ href: "/admin/dashboard", label: "人力分析" }],
+  },
+  {
+    title: "Foundation",
+    items: [
+      { href: "/admin/onboarding", label: "Hire 報到管理" },
+      { href: "/admin/departments", label: "Org 單位" },
+      { href: "/admin/org-chart", label: "公司組織圖" },
+      { href: "/admin/employees", label: "People 人員" },
+    ],
+  },
+  {
+    title: "Attendance",
+    items: [
+      { href: "/admin/shifts", label: "班別" },
+      { href: "/admin/schedules", label: "排班 / 班表審核" },
+      { href: "/admin/punch-records", label: "打卡紀錄維護" },
+      { href: "/admin/form-records", label: "表單紀錄管理" },
+      { href: "/admin/approvals", label: "待審核表單" },
+      { href: "/admin/leave-types", label: "假別與簽核流程" },
+      { href: "/admin/leave-balances", label: "假別時數管理" },
+      { href: "/admin/attendance-settlement", label: "結算作業" },
+      { href: "/admin/module-settings", label: "模組設定" },
+      { href: "/admin/reports", label: "報表中心" },
+    ],
+  },
+  {
+    title: "Payroll",
+    items: [
+      { href: "/admin/payroll", label: "薪資 / 保險資料" },
+      { href: "/admin/payroll-tax", label: "所得稅 / 補充保費" },
+    ],
+  },
+  {
+    title: "Recruitment",
+    items: [{ href: "/admin/recruitment", label: "招募 ATS" }],
+  },
 ];
 
 function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
@@ -60,18 +99,27 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
             {branding?.appName ?? "HR 後台"}
           </span>
         </div>
-        <nav className="flex flex-wrap gap-1 px-3 pb-3 md:flex-col md:flex-nowrap">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`rounded-md px-3 py-2 text-sm font-medium ${
-                isActive(item.href) ? "text-white" : "text-gray-600 hover:bg-gray-100"
-              }`}
-              style={isActive(item.href) ? { backgroundColor: "var(--brand)" } : undefined}
-            >
-              {item.label}
-            </Link>
+        <nav className="flex flex-wrap gap-2 px-3 pb-3 md:flex-col md:flex-nowrap">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.title} className="w-full">
+              <p className="px-3 pt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                {group.title}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1 md:flex-col">
+                {group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`rounded-md px-3 py-2 text-sm font-medium ${
+                      isActive(item.href) ? "text-white" : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                    style={isActive(item.href) ? { backgroundColor: "var(--brand)" } : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         <div className="hidden border-t border-gray-100 px-5 py-4 md:block">

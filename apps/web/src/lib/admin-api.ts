@@ -76,6 +76,8 @@ export interface Employee {
   user_id: string;
   name: string;
   role: string;
+  dept_id: string | null;
+  emp_no: string | null;
   employment_type: string | null;
   status: string;
   created_at: string;
@@ -496,17 +498,26 @@ export interface PunchRecord {
   id: string;
   employee_id: string;
   punch_at: string;
-  type: "in" | "out";
+  type: "in" | "out" | "break_in" | "break_out" | "outing_in" | "outing_out";
   source: string | null;
+  lat: number | null;
+  lng: number | null;
+  device_id: string | null;
 }
 
 export function getPunchRecordsAdmin(filters?: {
   employeeId?: string;
+  deptId?: string;
+  type?: PunchRecord["type"];
+  source?: "gps" | "web" | "line" | "manual";
   from?: string;
   to?: string;
 }) {
   const params = new URLSearchParams();
   if (filters?.employeeId) params.set("employeeId", filters.employeeId);
+  if (filters?.deptId) params.set("deptId", filters.deptId);
+  if (filters?.type) params.set("type", filters.type);
+  if (filters?.source) params.set("source", filters.source);
   if (filters?.from) params.set("from", filters.from);
   if (filters?.to) params.set("to", filters.to);
   const qs = params.toString();
@@ -516,7 +527,7 @@ export function getPunchRecordsAdmin(filters?: {
 export function createManualPunch(body: {
   employeeId: string;
   punchAt: string;
-  type: "in" | "out";
+  type: PunchRecord["type"];
 }) {
   return apiFetch<{ id: string }>("/punch/manual", {
     method: "POST",
@@ -821,4 +832,104 @@ export function getPayslip(id: string) {
 
 export function exportTaxFilingUrl(type: "withholding" | "supplementary") {
   return `/tax-filing/export?type=${type}`;
+}
+
+/* --------------------------------------------------------- Apollo admin --- */
+
+export interface AttendanceDay {
+  id: string;
+  employee_id: string;
+  work_date: string;
+  worked_minutes: number;
+  late_minutes: number;
+  overtime_minutes: number;
+  night_minutes: number;
+  day_type: string | null;
+  anomaly: unknown;
+}
+
+export function settleAttendance(body: {
+  employeeId?: string;
+  from: string;
+  to: string;
+}) {
+  return apiFetch<{ settled: number }>("/attendance/settle", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getAttendanceDays(params: {
+  employeeId?: string;
+  from?: string;
+  to?: string;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.employeeId) qs.set("employeeId", params.employeeId);
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  return apiFetch<{ attendanceDays: AttendanceDay[] }>(
+    `/attendance-days${qs.toString() ? `?${qs.toString()}` : ""}`,
+  );
+}
+
+export interface LeaveBalance {
+  id: string;
+  employee_id: string;
+  leave_type_id: string;
+  year: number;
+  entitled: number | string;
+  used: number | string;
+  deferred: number | string;
+}
+
+export function getLeaveBalancesAdmin(params: { employeeId?: string; year?: number } = {}) {
+  const qs = new URLSearchParams();
+  if (params.employeeId) qs.set("employeeId", params.employeeId);
+  if (params.year) qs.set("year", String(params.year));
+  return apiFetch<{ balances: LeaveBalance[] }>(
+    `/leave-balances${qs.toString() ? `?${qs.toString()}` : ""}`,
+  );
+}
+
+export function setLeaveBalance(body: {
+  employeeId: string;
+  leaveTypeId: string;
+  year: number;
+  entitled: number;
+  deferred?: number;
+}) {
+  return apiFetch<{ id: string }>("/leave-balances", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface RuleConfigResponse {
+  config: unknown;
+  version: number;
+  scope?: string;
+  isDefault: boolean;
+}
+
+export function getRuleConfig() {
+  return apiFetch<RuleConfigResponse>("/rule-config");
+}
+
+export function saveRuleConfig(config: unknown) {
+  return apiFetch<{ id: string; version: number }>("/rule-config", {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
+}
+
+export interface HeadcountReport {
+  total: number;
+  byStatus: Record<string, number>;
+  byRole: Record<string, number>;
+  byDept: { deptId: string | null; count: number }[];
+}
+
+export function getHeadcountReport() {
+  return apiFetch<HeadcountReport>("/reports/headcount");
 }
