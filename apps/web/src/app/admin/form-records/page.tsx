@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, PageHeader, ErrorText, Empty, PrimaryButton, inputCls, labelCls } from "@/components/admin-ui";
 import {
+  batchDecideRequests,
   deleteRequest,
+  getApprovalFlows,
+  getDepartments,
   getEmployees,
   getRequests,
   remindRequest,
+  type ApprovalFlow,
+  type Department,
   type Employee,
   type LeaveRequest,
   type RequestKind,
@@ -27,10 +32,29 @@ const STATUS_LABEL: Record<RequestStatus, string> = {
   cancelled: "已取消",
 };
 
-function downloadCsv(records: LeaveRequest[], employeeName: Map<string, string>) {
-  const header = ["申請日期", "申請人", "表單類型", "起日", "迄日", "時數", "地點/代理/給付", "原因", "關卡", "狀態"];
+function downloadCsv(
+  records: LeaveRequest[],
+  employeeName: Map<string, string>,
+  employeeDept: Map<string, string>,
+  currentApprover: (record: LeaveRequest) => string,
+) {
+  const header = [
+    "申請日期",
+    "單位",
+    "申請人",
+    "表單類型",
+    "起日",
+    "迄日",
+    "時數",
+    "地點/代理/給付",
+    "原因",
+    "目前簽核人",
+    "關卡",
+    "狀態",
+  ];
   const rows = records.map((record) => [
     record.created_at.slice(0, 10),
+    employeeDept.get(record.employee_id) ?? "—",
     employeeName.get(record.employee_id) ?? record.employee_id,
     KIND_LABEL[record.kind],
     record.start_at.slice(0, 16).replace("T", " "),
@@ -38,6 +62,7 @@ function downloadCsv(records: LeaveRequest[], employeeName: Map<string, string>)
     record.hours ?? "",
     [record.location, record.agent_name, record.payout].filter(Boolean).join(" / "),
     record.reason ?? record.remark ?? "",
+    currentApprover(record),
     `第 ${record.current_step} 關`,
     STATUS_LABEL[record.status],
   ]);
@@ -56,12 +81,16 @@ function downloadCsv(records: LeaveRequest[], employeeName: Map<string, string>)
 export default function FormRecordsPage() {
   const [records, setRecords] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [approvalFlows, setApprovalFlows] = useState<ApprovalFlow[]>([]);
   const [status, setStatus] = useState<"" | RequestStatus>("");
   const [kind, setKind] = useState<"" | RequestKind>("");
+  const [deptId, setDeptId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [adminComment, setAdminComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,19 +104,72 @@ export default function FormRecordsPage() {
     return map;
   }, [employees]);
 
+  const employeeById = useMemo(() => {
+    const map = new Map<string, Employee>();
+    for (const employee of employees) {
+      map.set(employee.id, employee);
+    }
+    return map;
+  }, [employees]);
+
+  const deptName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const department of departments) {
+      map.set(department.id, department.name);
+    }
+    return map;
+  }, [departments]);
+
+  const employeeDept = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const employee of employees) {
+      map.set(employee.id, employee.dept_id ? (deptName.get(employee.dept_id) ?? "未命名單位") : "—");
+    }
+    return map;
+  }, [deptName, employees]);
+
+  const approvalFlowByKind = useMemo(() => {
+    const map = new Map<RequestKind, string[]>();
+    for (const flow of approvalFlows) {
+      map.set(flow.applies_to, flow.approver_emp_ids ?? []);
+    }
+    return map;
+  }, [approvalFlows]);
+
+  const fallbackHrApprover = useMemo(
+    () => employees.find((employee) => employee.role === "hr_admin" || employee.role === "platform_admin"),
+    [employees],
+  );
+
+  const currentApproverLabel = useCallback(
+    (record: LeaveRequest) => {
+      if (record.status !== "pending") return "—";
+      const approverId = approvalFlowByKind.get(record.kind)?.[record.current_step - 1] ?? fallbackHrApprover?.id;
+      const label = approverId ? employeeName.get(approverId) : undefined;
+      return label ? `第 ${record.current_step} 關 · ${label}` : `第 ${record.current_step} 關 · 依後端簽核鏈`;
+    },
+    [approvalFlowByKind, employeeName, fallbackHrApprover],
+  );
+
   const filtered = useMemo(() => {
     const term = keyword.trim().toLowerCase();
-    if (!term) return records;
     return records.filter((record) => {
+      const employee = employeeById.get(record.employee_id);
+      if (deptId && employee?.dept_id !== deptId) return false;
+      if (!term) return true;
       const name = employeeName.get(record.employee_id) ?? "";
-      const content = [record.reason, record.remark, record.location, record.agent_name].filter(Boolean).join(" ");
+      const department = employeeDept.get(record.employee_id) ?? "";
+      const content = [record.reason, record.remark, record.location, record.agent_name, currentApproverLabel(record)]
+        .filter(Boolean)
+        .join(" ");
       return (
         name.toLowerCase().includes(term) ||
         record.employee_id.toLowerCase().includes(term) ||
+        department.toLowerCase().includes(term) ||
         content.toLowerCase().includes(term)
       );
     });
-  }, [employeeName, keyword, records]);
+  }, [currentApproverLabel, deptId, employeeById, employeeDept, employeeName, keyword, records]);
 
   const stats = useMemo(() => {
     return {
@@ -101,7 +183,7 @@ export default function FormRecordsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [reqRes, empRes] = await Promise.all([
+      const [reqRes, empRes, deptRes, flowRes] = await Promise.all([
         getRequests({
           status: status || undefined,
           kind: kind || undefined,
@@ -110,9 +192,13 @@ export default function FormRecordsPage() {
           to: to || undefined,
         }),
         getEmployees(),
+        getDepartments(),
+        getApprovalFlows(),
       ]);
       setRecords(reqRes.requests);
       setEmployees(empRes.employees);
+      setDepartments(deptRes.departments);
+      setApprovalFlows(flowRes.flows);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入表單紀錄失敗");
@@ -137,6 +223,35 @@ export default function FormRecordsPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function proxyApprove(id: string) {
+    if (!window.confirm("確定要以 HR 代理簽核核准此表單？")) return;
+    setBusyId(id);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await batchDecideRequests({
+        ids: [id],
+        action: "approve",
+        comment: adminComment || "HR 代理簽核",
+      });
+      if (result.failed > 0) {
+        const failed = result.results.find((item) => !item.ok);
+        throw new Error(failed && !failed.ok ? failed.error : "代理簽核失敗");
+      }
+      setMessage("已完成 HR 代理簽核");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "代理簽核失敗");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function showChangeApproverNotice() {
+    setError(null);
+    setMessage("變更簽核人目前尚未有後端 API；未變更任何資料。請先至「假別與簽核流程」調整後續新表單流程。");
   }
 
   async function remove(id: string) {
@@ -181,7 +296,7 @@ export default function FormRecordsPage() {
       </Card>
 
       <Card>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-8">
           <div>
             <label className={labelCls}>表單狀態</label>
             <select className={inputCls} value={status} onChange={(event) => setStatus(event.target.value as "" | RequestStatus)}>
@@ -202,8 +317,19 @@ export default function FormRecordsPage() {
               <option value="business_trip">公出/出差</option>
             </select>
           </div>
+          <div>
+            <label className={labelCls}>單位</label>
+            <select className={inputCls} value={deptId} onChange={(event) => setDeptId(event.target.value)}>
+              <option value="">全部單位</option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="lg:col-span-2">
-            <label className={labelCls}>員工</label>
+            <label className={labelCls}>工號 / 姓名</label>
             <select className={inputCls} value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
               <option value="">全部人員</option>
               {employees.map((employee) => (
@@ -214,15 +340,15 @@ export default function FormRecordsPage() {
             </select>
           </div>
           <div>
-            <label className={labelCls}>起日</label>
+            <label className={labelCls}>查詢起日</label>
             <input type="date" className={inputCls} value={from} onChange={(event) => setFrom(event.target.value)} />
           </div>
           <div>
-            <label className={labelCls}>迄日</label>
+            <label className={labelCls}>查詢迄日</label>
             <input type="date" className={inputCls} value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
           <div className="flex items-end">
-            <PrimaryButton onClick={() => void load()}>搜尋</PrimaryButton>
+            <PrimaryButton onClick={() => void load()} disabled={loading}>搜尋</PrimaryButton>
           </div>
           <div className="lg:col-span-5">
             <label className={labelCls}>關鍵字</label>
@@ -230,13 +356,22 @@ export default function FormRecordsPage() {
               className={inputCls}
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="搜尋姓名、工號、原因、地點或代理人"
+              placeholder="搜尋姓名、工號、單位、原因、地點、代理人或目前簽核人"
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <label className={labelCls}>管理備註</label>
+            <input
+              className={inputCls}
+              value={adminComment}
+              onChange={(event) => setAdminComment(event.target.value)}
+              placeholder="代理簽核時寫入意見"
             />
           </div>
           <div className="flex items-end lg:col-span-2">
             <button
               type="button"
-              onClick={() => downloadCsv(filtered, employeeName)}
+              onClick={() => downloadCsv(filtered, employeeName, employeeDept, currentApproverLabel)}
               className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
             >
               匯出 CSV
@@ -258,7 +393,8 @@ export default function FormRecordsPage() {
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-500">
                   <th className="py-2 pr-4">申請日期</th>
-                  <th className="py-2 pr-4">申請人</th>
+                  <th className="py-2 pr-4">單位</th>
+                  <th className="py-2 pr-4">工號 / 姓名</th>
                   <th className="py-2 pr-4">表單類型</th>
                   <th className="py-2 pr-4">內容</th>
                   <th className="py-2 pr-4">目前簽核人</th>
@@ -270,6 +406,7 @@ export default function FormRecordsPage() {
                 {filtered.map((record) => (
                   <tr key={record.id} className="border-b border-gray-50 align-top">
                     <td className="py-3 pr-4">{record.created_at.slice(0, 10)}</td>
+                    <td className="py-3 pr-4 text-gray-600">{employeeDept.get(record.employee_id) ?? "—"}</td>
                     <td className="py-3 pr-4 font-medium text-gray-800">
                       {employeeName.get(record.employee_id) ?? record.employee_id.slice(0, 8)}
                     </td>
@@ -284,14 +421,14 @@ export default function FormRecordsPage() {
                       {record.agent_name && <p className="text-xs text-gray-400">代理人：{record.agent_name}</p>}
                       {record.payout && <p className="text-xs text-gray-400">給付：{record.payout === "pay" ? "加班費" : "補休"}</p>}
                     </td>
-                    <td className="py-3 pr-4">第 {record.current_step} 關</td>
+                    <td className="py-3 pr-4 text-gray-600">{currentApproverLabel(record)}</td>
                     <td className="py-3 pr-4">
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
                         {STATUS_LABEL[record.status]}
                       </span>
                     </td>
                     <td className="py-3">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => void remind(record.id)}
@@ -299,6 +436,22 @@ export default function FormRecordsPage() {
                           className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 disabled:opacity-50"
                         >
                           催簽
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void proxyApprove(record.id)}
+                          disabled={busyId === record.id || record.status !== "pending"}
+                          className="rounded-md border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 disabled:opacity-50"
+                        >
+                          代理簽核
+                        </button>
+                        <button
+                          type="button"
+                          onClick={showChangeApproverNotice}
+                          className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-medium text-blue-700"
+                          title="後端尚未提供變更既有表單簽核人的 API"
+                        >
+                          變更簽核人
                         </button>
                         <button
                           type="button"

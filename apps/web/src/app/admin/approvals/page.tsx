@@ -4,12 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, PageHeader, ErrorText, Empty, PrimaryButton, inputCls, labelCls } from "@/components/admin-ui";
 import {
   batchDecideRequests,
+  getDepartments,
   getEmployees,
   getRequests,
   rejectRequest,
   approveRequest,
+  type Department,
   type LeaveRequest,
   type RequestKind,
+  type RequestStatus,
   type Employee,
 } from "@/lib/admin-api";
 
@@ -18,6 +21,20 @@ const KIND_LABEL: Record<RequestKind, string> = {
   ot: "加班",
   fix_punch: "補卡",
   business_trip: "公出/出差",
+};
+
+const STATUS_LABEL: Record<RequestStatus, string> = {
+  pending: "待審核",
+  approved: "已核准",
+  rejected: "已駁回",
+  cancelled: "已取消",
+};
+
+const STATUS_CLASS: Record<RequestStatus, string> = {
+  pending: "bg-amber-100 text-amber-700",
+  approved: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
+  cancelled: "bg-gray-100 text-gray-600",
 };
 
 function fmt(iso: string): string {
@@ -29,9 +46,31 @@ function fmt(iso: string): string {
   });
 }
 
+function dateOnly(iso: string): string {
+  return new Date(iso).toLocaleDateString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function contentLines(row: LeaveRequest): string[] {
+  const period = `${fmt(row.start_at)} → ${fmt(row.end_at)}`;
+  const lines = [row.hours != null ? `${period}（${row.hours} 小時）` : period];
+  const main = row.reason || row.remark;
+  if (main) lines.push(main);
+  if (row.location) lines.push(`地點：${row.location}`);
+  if (row.agent_name) lines.push(`代理人：${row.agent_name}`);
+  if (row.trip_type) lines.push(`類型：${row.trip_type === "outing" ? "公出" : "出差"}`);
+  if (row.payout) lines.push(`加班給付：${row.payout === "pay" ? "加班費" : "補休"}`);
+  return lines;
+}
+
 export default function ApprovalsPage() {
   const [rows, setRows] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [status, setStatus] = useState<"" | RequestStatus>("pending");
   const [kind, setKind] = useState<"" | RequestKind>("");
   const [employeeId, setEmployeeId] = useState("");
   const [from, setFrom] = useState("");
@@ -43,40 +82,53 @@ export default function ApprovalsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const empName = useMemo(() => {
-    const map = new Map<string, string>();
+  const employeeById = useMemo(() => {
+    const map = new Map<string, Employee>();
     for (const employee of employees) {
-      map.set(employee.id, employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name);
+      map.set(employee.id, employee);
     }
     return map;
   }, [employees]);
 
+  const deptName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const department of departments) {
+      map.set(department.id, department.name);
+    }
+    return map;
+  }, [departments]);
+
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const allSelected = rows.length > 0 && rows.every((row) => selectedSet.has(row.id));
+  const selectableRows = useMemo(() => rows.filter((row) => row.status === "pending"), [rows]);
+  const allSelected = selectableRows.length > 0 && selectableRows.every((row) => selectedSet.has(row.id));
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [reqRes, empRes] = await Promise.all([
+      const [reqRes, empRes, deptRes] = await Promise.all([
         getRequests({
-          status: "pending",
+          status: status || undefined,
           kind: kind || undefined,
           employeeId: employeeId || undefined,
           from: from || undefined,
           to: to || undefined,
         }),
         getEmployees(),
+        getDepartments(),
       ]);
       setRows(reqRes.requests);
       setEmployees(empRes.employees);
-      setSelectedIds((ids) => ids.filter((id) => reqRes.requests.some((request) => request.id === id)));
+      setDepartments(deptRes.departments);
+      setSelectedIds((ids) =>
+        ids.filter((id) => reqRes.requests.some((request) => request.id === id && request.status === "pending")),
+      );
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
     } finally {
       setLoading(false);
     }
-  }, [employeeId, from, kind, to]);
+  }, [employeeId, from, kind, status, to]);
 
   useEffect(() => {
     void load();
@@ -87,7 +139,17 @@ export default function ApprovalsPage() {
   }
 
   function toggleAll() {
-    setSelectedIds(allSelected ? [] : rows.map((row) => row.id));
+    setSelectedIds(allSelected ? [] : selectableRows.map((row) => row.id));
+  }
+
+  function employeeLabel(employee: Employee | undefined, fallbackId: string) {
+    if (!employee) return fallbackId.slice(0, 8);
+    return employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name;
+  }
+
+  function departmentLabel(employee: Employee | undefined) {
+    if (!employee?.dept_id) return "—";
+    return deptName.get(employee.dept_id) ?? "未命名單位";
   }
 
   async function decide(id: string, action: "approve" | "reject") {
@@ -134,7 +196,21 @@ export default function ApprovalsPage() {
       <PageHeader title="簽核" desc="待處理表單、批次核准/駁回、依人員與表單類型快速篩選" />
 
       <Card>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+          <div>
+            <label className={labelCls}>狀態</label>
+            <select
+              className={inputCls}
+              value={status}
+              onChange={(event) => setStatus(event.target.value as "" | RequestStatus)}
+            >
+              <option value="">全部</option>
+              <option value="pending">待審核</option>
+              <option value="approved">已核准</option>
+              <option value="rejected">已駁回</option>
+              <option value="cancelled">已取消</option>
+            </select>
+          </div>
           <div>
             <label className={labelCls}>表單類型</label>
             <select className={inputCls} value={kind} onChange={(event) => setKind(event.target.value as "" | RequestKind)}>
@@ -146,7 +222,7 @@ export default function ApprovalsPage() {
             </select>
           </div>
           <div className="lg:col-span-2">
-            <label className={labelCls}>員工</label>
+            <label className={labelCls}>工號 / 姓名</label>
             <select className={inputCls} value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
               <option value="">全部人員</option>
               {employees.map((employee) => (
@@ -210,7 +286,7 @@ export default function ApprovalsPage() {
         {loading ? (
           <Empty>載入中…</Empty>
         ) : rows.length === 0 ? (
-          <Empty>目前沒有待簽核的申請</Empty>
+          <Empty>目前沒有符合條件的申請</Empty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -219,68 +295,79 @@ export default function ApprovalsPage() {
                   <th className="w-10 py-2 pr-4">
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="全選" />
                   </th>
-                  <th className="py-2 pr-4">申請人</th>
-                  <th className="py-2 pr-4">表單</th>
-                  <th className="py-2 pr-4">期間 / 時數</th>
+                  <th className="py-2 pr-4">單位</th>
+                  <th className="py-2 pr-4">工號 / 姓名</th>
+                  <th className="py-2 pr-4">表單類型</th>
+                  <th className="py-2 pr-4">申請日期</th>
+                  <th className="py-2 pr-4">內容</th>
+                  <th className="py-2 pr-4">狀態</th>
                   <th className="py-2 pr-4">目前關卡</th>
-                  <th className="py-2 pr-4">原因 / 補充欄位</th>
                   <th className="py-2">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-gray-50 align-top">
-                    <td className="py-3 pr-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedSet.has(row.id)}
-                        onChange={() => toggleOne(row.id)}
-                        aria-label={`選取 ${row.id}`}
-                      />
-                    </td>
-                    <td className="py-3 pr-4 font-medium text-gray-800">
-                      {empName.get(row.employee_id) ?? row.employee_id.slice(0, 8)}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                        {KIND_LABEL[row.kind]}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-gray-600">
-                      {fmt(row.start_at)} → {fmt(row.end_at)}
-                      {row.hours != null ? <span className="block text-xs text-gray-400">{row.hours} 小時</span> : null}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">
-                        第 {row.current_step} 關
-                      </span>
-                    </td>
-                    <td className="max-w-xs py-3 pr-4 text-gray-600">
-                      <p className="truncate">{row.reason || row.remark || "—"}</p>
-                      {row.location && <p className="text-xs text-gray-400">地點：{row.location}</p>}
-                      {row.agent_name && <p className="text-xs text-gray-400">代理人：{row.agent_name}</p>}
-                      {row.payout && <p className="text-xs text-gray-400">加班給付：{row.payout === "pay" ? "加班費" : "補休"}</p>}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => void decide(row.id, "approve")}
-                          disabled={busyId === row.id}
-                          className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                        >
-                          核准
-                        </button>
-                        <button
-                          onClick={() => void decide(row.id, "reject")}
-                          disabled={busyId === row.id}
-                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                        >
-                          駁回
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const employee = employeeById.get(row.employee_id);
+                  const canDecide = row.status === "pending";
+                  return (
+                    <tr key={row.id} className="border-b border-gray-50 align-top">
+                      <td className="py-3 pr-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedSet.has(row.id)}
+                          disabled={!canDecide}
+                          onChange={() => toggleOne(row.id)}
+                          aria-label={`選取 ${row.id}`}
+                        />
+                      </td>
+                      <td className="py-3 pr-4 text-gray-600">{departmentLabel(employee)}</td>
+                      <td className="py-3 pr-4 font-medium text-gray-800">
+                        {employeeLabel(employee, row.employee_id)}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                          {KIND_LABEL[row.kind]}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-gray-600">{dateOnly(row.created_at)}</td>
+                      <td className="max-w-sm py-3 pr-4 text-gray-600">
+                        {contentLines(row).map((line, index) => (
+                          <p key={`${row.id}-${index}`} className={index === 0 ? "" : "text-xs text-gray-400"}>
+                            {line}
+                          </p>
+                        ))}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className={`rounded-full px-2 py-1 text-xs ${STATUS_CLASS[row.status]}`}>
+                          {STATUS_LABEL[row.status]}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">
+                          第 {row.current_step} 關
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => void decide(row.id, "approve")}
+                            disabled={!canDecide || busyId === row.id}
+                            className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                          >
+                            核准
+                          </button>
+                          <button
+                            onClick={() => void decide(row.id, "reject")}
+                            disabled={!canDecide || busyId === row.id}
+                            className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                          >
+                            駁回
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
