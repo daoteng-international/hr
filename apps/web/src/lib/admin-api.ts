@@ -838,11 +838,13 @@ export function createManualPunch(body: {
 export interface NonEmployeeIncome {
   id: string;
   payee_name: string;
+  id_number: string | null;
   income_type: string | null;
   amount: string;
   tax_withheld: string;
   supplementary_premium: string;
   pay_date: string | null;
+  note: string | null;
   created_at: string;
 }
 
@@ -873,10 +875,12 @@ export function getNonEmployeeIncome() {
 
 export function createNonEmployeeIncome(body: {
   payeeName: string;
+  idNumber?: string;
   incomeType?: string;
   amount: number;
   withholdRate?: number;
   payDate?: string;
+  note?: string;
 }) {
   return apiFetch<{ id: string; taxWithheld: number; supplementaryPremium: number }>(
     "/non-employee-income",
@@ -1015,7 +1019,7 @@ export interface Payslip {
 }
 
 export function runPayroll(period: string, employeeId?: string) {
-  return apiFetch<{ payslips?: unknown[]; count?: number }>(`/payroll/run`, {
+  return apiFetch<{ generated: number; skipped: string[] }>(`/payroll/run`, {
     method: "POST",
     body: JSON.stringify({ period, employeeId }),
   });
@@ -1037,6 +1041,7 @@ export interface NhiDependent {
   employee_id: string;
   name: string;
   relationship: string | null;
+  id_number: string | null;
   insured: boolean;
 }
 
@@ -1046,7 +1051,13 @@ export function getNhiDependents(employeeId: string) {
   );
 }
 
-export function addNhiDependent(body: { employeeId: string; name: string; relationship?: string }) {
+export function addNhiDependent(body: {
+  employeeId: string;
+  name: string;
+  relationship?: string;
+  idNumber?: string;
+  insured?: boolean;
+}) {
   return apiFetch<{ id: string }>("/nhi-dependents", {
     method: "POST",
     body: JSON.stringify(body),
@@ -1062,6 +1073,7 @@ export interface TaxDependent {
   employee_id: string;
   name: string;
   relationship: string | null;
+  id_number: string | null;
   birth_year: number | null;
 }
 
@@ -1075,6 +1087,7 @@ export function addTaxDependent(body: {
   employeeId: string;
   name: string;
   relationship?: string;
+  idNumber?: string;
   birthYear?: number;
 }) {
   return apiFetch<{ id: string }>("/income-tax-dependents", {

@@ -43,6 +43,14 @@ export default function PayrollAdminPage() {
   const [salaryMsg, setSalaryMsg] = useState<string | null>(null);
   const [nhiDeps, setNhiDeps] = useState<NhiDependent[]>([]);
   const [taxDeps, setTaxDeps] = useState<TaxDependent[]>([]);
+  const [nhiName, setNhiName] = useState("");
+  const [nhiRelationship, setNhiRelationship] = useState("");
+  const [nhiIdNumber, setNhiIdNumber] = useState("");
+  const [nhiInsured, setNhiInsured] = useState(true);
+  const [taxName, setTaxName] = useState("");
+  const [taxRelationship, setTaxRelationship] = useState("");
+  const [taxIdNumber, setTaxIdNumber] = useState("");
+  const [taxBirthYear, setTaxBirthYear] = useState("");
 
   // 執行薪資作業 + 查詢/列印
   const currentPeriod = new Date().toISOString().slice(0, 7);
@@ -136,21 +144,39 @@ export default function PayrollAdminPage() {
     }
   }
 
-  async function onAddNhi() {
+  async function onAddNhi(e: FormEvent) {
+    e.preventDefault();
     if (!empId) return;
-    const name = prompt("眷屬姓名？");
-    if (!name) return;
-    const relationship = prompt("關係？（配偶/子女/父母…）") ?? undefined;
-    await addNhiDependent({ employeeId: empId, name, relationship: relationship || undefined });
+    if (!nhiName.trim()) return;
+    await addNhiDependent({
+      employeeId: empId,
+      name: nhiName.trim(),
+      relationship: nhiRelationship.trim() || undefined,
+      idNumber: nhiIdNumber.trim() || undefined,
+      insured: nhiInsured,
+    });
+    setNhiName("");
+    setNhiRelationship("");
+    setNhiIdNumber("");
+    setNhiInsured(true);
     await loadEmployee(empId);
   }
 
-  async function onAddTax() {
+  async function onAddTax(e: FormEvent) {
+    e.preventDefault();
     if (!empId) return;
-    const name = prompt("扶養親屬姓名？");
-    if (!name) return;
-    const relationship = prompt("關係？") ?? undefined;
-    await addTaxDependent({ employeeId: empId, name, relationship: relationship || undefined });
+    if (!taxName.trim()) return;
+    await addTaxDependent({
+      employeeId: empId,
+      name: taxName.trim(),
+      relationship: taxRelationship.trim() || undefined,
+      idNumber: taxIdNumber.trim() || undefined,
+      birthYear: taxBirthYear ? Number(taxBirthYear) : undefined,
+    });
+    setTaxName("");
+    setTaxRelationship("");
+    setTaxIdNumber("");
+    setTaxBirthYear("");
     await loadEmployee(empId);
   }
 
@@ -158,8 +184,8 @@ export default function PayrollAdminPage() {
     e.preventDefault();
     setRunMsg(null);
     try {
-      await runPayroll(runPeriod, runEmployeeId || undefined);
-      setRunMsg(`已執行 ${runPeriod} 薪資作業`);
+      const result = await runPayroll(runPeriod, runEmployeeId || undefined);
+      setRunMsg(`已執行 ${runPeriod} 薪資作業：產生 ${result.generated} 筆，略過已定案 ${result.skipped.length} 筆`);
       if (listPeriod === runPeriod) await loadPayslips();
     } catch (err) {
       setRunMsg(err instanceof Error ? err.message : "執行失敗");
@@ -288,14 +314,28 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
 
             <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-600">健保眷屬投保資料</h3>
-                  <button onClick={onAddNhi} className="text-sm font-medium" style={{ color: "var(--brand)" }}>＋ 新增</button>
-                </div>
+                <h3 className="mb-2 text-sm font-medium text-gray-600">健保眷屬投保資料</h3>
+                <form onSubmit={onAddNhi} className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input className={inputCls} value={nhiName} onChange={(event) => setNhiName(event.target.value)} placeholder="眷屬姓名" />
+                  <input className={inputCls} value={nhiRelationship} onChange={(event) => setNhiRelationship(event.target.value)} placeholder="關係" />
+                  <input className={inputCls} value={nhiIdNumber} onChange={(event) => setNhiIdNumber(event.target.value)} placeholder="身分證字號" />
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" checked={nhiInsured} onChange={(event) => setNhiInsured(event.target.checked)} />
+                    投保中
+                  </label>
+                  <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>
+                    新增健保眷屬
+                  </button>
+                </form>
                 <ul className="divide-y divide-gray-100 text-sm">
                   {nhiDeps.map((d) => (
                     <li key={d.id} className="flex items-center justify-between py-1.5">
-                      <span>{d.name} <span className="text-xs text-gray-500">{d.relationship ?? ""}</span></span>
+                      <span>
+                        {d.name}
+                        <span className="text-xs text-gray-500">
+                          {" "}｜{d.relationship ?? "—"}｜{d.id_number ?? "無證號"}｜{d.insured ? "投保中" : "未投保"}
+                        </span>
+                      </span>
                       <button onClick={() => deleteNhiDependent(d.id).then(() => loadEmployee(empId))} className="text-red-600 hover:underline">刪除</button>
                     </li>
                   ))}
@@ -303,14 +343,25 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
                 </ul>
               </div>
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-600">所得稅扶養親屬資料</h3>
-                  <button onClick={onAddTax} className="text-sm font-medium" style={{ color: "var(--brand)" }}>＋ 新增</button>
-                </div>
+                <h3 className="mb-2 text-sm font-medium text-gray-600">所得稅扶養親屬資料</h3>
+                <form onSubmit={onAddTax} className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input className={inputCls} value={taxName} onChange={(event) => setTaxName(event.target.value)} placeholder="親屬姓名" />
+                  <input className={inputCls} value={taxRelationship} onChange={(event) => setTaxRelationship(event.target.value)} placeholder="關係" />
+                  <input className={inputCls} value={taxIdNumber} onChange={(event) => setTaxIdNumber(event.target.value)} placeholder="身分證字號" />
+                  <input className={inputCls} type="number" value={taxBirthYear} onChange={(event) => setTaxBirthYear(event.target.value)} placeholder="出生年" />
+                  <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>
+                    新增扶養親屬
+                  </button>
+                </form>
                 <ul className="divide-y divide-gray-100 text-sm">
                   {taxDeps.map((d) => (
                     <li key={d.id} className="flex items-center justify-between py-1.5">
-                      <span>{d.name} <span className="text-xs text-gray-500">{d.relationship ?? ""}</span></span>
+                      <span>
+                        {d.name}
+                        <span className="text-xs text-gray-500">
+                          {" "}｜{d.relationship ?? "—"}｜{d.id_number ?? "無證號"}｜出生年 {d.birth_year ?? "—"}
+                        </span>
+                      </span>
                       <button onClick={() => deleteTaxDependent(d.id).then(() => loadEmployee(empId))} className="text-red-600 hover:underline">刪除</button>
                     </li>
                   ))}

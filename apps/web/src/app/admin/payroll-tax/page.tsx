@@ -33,8 +33,12 @@ export default function PayrollTaxPage() {
   // 非員工所得
   const [nei, setNei] = useState<NonEmployeeIncome[]>([]);
   const [payee, setPayee] = useState("");
+  const [payeeIdNumber, setPayeeIdNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [incomeType, setIncomeType] = useState("");
+  const [payDate, setPayDate] = useState("");
+  const [withholdRate, setWithholdRate] = useState("0.1");
+  const [neiNote, setNeiNote] = useState("");
 
   // 補充保費試算
   const [calcAmount, setCalcAmount] = useState("50000");
@@ -95,13 +99,20 @@ export default function PayrollTaxPage() {
     try {
       await createNonEmployeeIncome({
         payeeName: payee.trim(),
+        idNumber: payeeIdNumber.trim() || undefined,
         incomeType: incomeType.trim() || undefined,
         amount: Number(amount),
-        withholdRate: 0.1,
+        withholdRate: withholdRate ? Number(withholdRate) : 0,
+        payDate: payDate || undefined,
+        note: neiNote.trim() || undefined,
       });
       setPayee("");
+      setPayeeIdNumber("");
       setAmount("");
       setIncomeType("");
+      setPayDate("");
+      setWithholdRate("0.1");
+      setNeiNote("");
       await loadNei();
     } catch (err) {
       setError(err instanceof Error ? err.message : "新增失敗");
@@ -222,10 +233,14 @@ export default function PayrollTaxPage() {
       <Card>
         <h2 className="mb-4 text-sm font-medium text-gray-500">非員工所得（自動計算補充保費）</h2>
         <form onSubmit={onCreateNei} className="mb-4 space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div>
               <label className={labelCls}>受款人</label>
               <input className={inputCls} value={payee} onChange={(e) => setPayee(e.target.value)} placeholder="講師甲" />
+            </div>
+            <div>
+              <label className={labelCls}>身分證 / 統編</label>
+              <input className={inputCls} value={payeeIdNumber} onChange={(e) => setPayeeIdNumber(e.target.value)} placeholder="A123456789" />
             </div>
             <div>
               <label className={labelCls}>所得類別</label>
@@ -235,22 +250,54 @@ export default function PayrollTaxPage() {
               <label className={labelCls}>金額</label>
               <input className={inputCls} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="50000" />
             </div>
+            <div>
+              <label className={labelCls}>扣繳率</label>
+              <input className={inputCls} type="number" step="0.01" min="0" max="1" value={withholdRate} onChange={(e) => setWithholdRate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>給付日期</label>
+              <input className={inputCls} type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>備註</label>
+              <input className={inputCls} value={neiNote} onChange={(e) => setNeiNote(e.target.value)} />
+            </div>
           </div>
-          <PrimaryButton type="submit">新增（扣繳 10%）</PrimaryButton>
+          <PrimaryButton type="submit">新增非員工所得</PrimaryButton>
         </form>
         {nei.length === 0 ? (
           <Empty>尚無資料</Empty>
         ) : (
-          <ul className="divide-y divide-gray-100">
-            {nei.map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="font-medium text-gray-800">{r.payee_name}</span>
-                <span className="text-gray-500">
-                  金額 {r.amount}｜扣繳 {r.tax_withheld}｜補充保費 {r.supplementary_premium}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs text-gray-500">
+                  <th className="py-2 pr-4">受款人</th>
+                  <th className="py-2 pr-4">證號</th>
+                  <th className="py-2 pr-4">所得類別</th>
+                  <th className="py-2 pr-4">給付日</th>
+                  <th className="py-2 pr-4">金額</th>
+                  <th className="py-2 pr-4">扣繳</th>
+                  <th className="py-2 pr-4">補充保費</th>
+                  <th className="py-2">備註</th>
+                </tr>
+              </thead>
+              <tbody>
+                {nei.map((row) => (
+                  <tr key={row.id} className="border-b border-gray-50">
+                    <td className="py-2 pr-4 font-medium text-gray-800">{row.payee_name}</td>
+                    <td className="py-2 pr-4">{row.id_number ?? "—"}</td>
+                    <td className="py-2 pr-4">{row.income_type ?? "—"}</td>
+                    <td className="py-2 pr-4">{row.pay_date ?? "—"}</td>
+                    <td className="py-2 pr-4">{row.amount}</td>
+                    <td className="py-2 pr-4">{row.tax_withheld}</td>
+                    <td className="py-2 pr-4">{row.supplementary_premium}</td>
+                    <td className="py-2">{row.note ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
