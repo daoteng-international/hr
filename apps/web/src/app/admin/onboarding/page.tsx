@@ -8,7 +8,11 @@ import {
   completeOnboarding,
   deleteOnboarding,
   importOnboardings,
+  getDepartments,
+  getEmployees,
   type Onboarding,
+  type Department,
+  type Employee,
 } from "@/lib/admin-api";
 
 const CSV_TEMPLATE = "name,reportDate,identityType,region,employmentType\n王小明,2026-08-01,全職,台北,regular\n";
@@ -19,11 +23,16 @@ const labelCls = "mb-1 block text-xs font-medium text-gray-500";
 
 export default function OnboardingPage() {
   const [rows, setRows] = useState<Onboarding[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [identityType, setIdentityType] = useState("");
+  const [employmentType, setEmploymentType] = useState("regular");
+  const [deptId, setDeptId] = useState("");
+  const [managerEmpId, setManagerEmpId] = useState("");
   const [region, setRegion] = useState("");
   const [reportDate, setReportDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -82,8 +91,17 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
+    Promise.all([getDepartments(), getEmployees()])
+      .then(([departmentRes, employeeRes]) => {
+        setDepartments(departmentRes.departments);
+        setEmployees(employeeRes.employees);
+      })
+      .catch(() => null);
     void load();
   }, [load]);
+
+  const deptName = (id: string | null) => departments.find((department) => department.id === id)?.name ?? "—";
+  const employeeName = (id: string | null) => employees.find((employee) => employee.id === id)?.name ?? "—";
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -96,12 +114,18 @@ export default function OnboardingPage() {
     try {
       await createOnboarding({
         name: name.trim(),
+        deptId: deptId || null,
+        managerEmpId: managerEmpId || null,
+        employmentType,
         identityType: identityType.trim() || null,
         region: region.trim() || null,
         reportDate: reportDate || null,
       });
       setName("");
       setIdentityType("");
+      setEmploymentType("regular");
+      setDeptId("");
+      setManagerEmpId("");
       setRegion("");
       setReportDate("");
       await load();
@@ -145,12 +169,38 @@ export default function OnboardingPage() {
               <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="王小明" />
             </div>
             <div>
-              <label className={labelCls}>身分別</label>
+              <label className={labelCls}>身份類別</label>
               <input className={inputCls} value={identityType} onChange={(e) => setIdentityType(e.target.value)} placeholder="全職" />
+            </div>
+            <div>
+              <label className={labelCls}>身分類別</label>
+              <select className={inputCls} value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}>
+                <option value="regular">正職</option>
+                <option value="parttime">兼職</option>
+                <option value="contract">約聘</option>
+              </select>
             </div>
             <div>
               <label className={labelCls}>地區</label>
               <input className={inputCls} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="台北" />
+            </div>
+            <div>
+              <label className={labelCls}>單位</label>
+              <select className={inputCls} value={deptId} onChange={(e) => setDeptId(e.target.value)}>
+                <option value="">（不指定）</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>直屬主管</label>
+              <select className={inputCls} value={managerEmpId} onChange={(e) => setManagerEmpId(e.target.value)}>
+                <option value="">（不指定）</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>{employee.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelCls}>報到日</label>
@@ -229,6 +279,8 @@ export default function OnboardingPage() {
                   {r.identity_type && (
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{r.identity_type}</span>
                   )}
+                  <span className="text-xs text-gray-500">單位 {deptName(r.dept_id)}</span>
+                  <span className="text-xs text-gray-500">主管 {employeeName(r.manager_emp_id)}</span>
                   {r.region && <span className="text-xs text-gray-500">{r.region}</span>}
                   {r.report_date && <span className="text-xs text-gray-400">報到 {r.report_date}</span>}
                   {r.status === "completed" ? (

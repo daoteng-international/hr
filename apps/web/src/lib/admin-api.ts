@@ -384,6 +384,8 @@ export function importOnboardings(csv: string) {
 export function createOnboarding(body: {
   name: string;
   deptId?: string | null;
+  managerEmpId?: string | null;
+  employmentType?: string;
   identityType?: string | null;
   region?: string | null;
   reportDate?: string | null;
@@ -852,10 +854,12 @@ export function getHeadcount(params: {
   to: string;
   deptId?: string;
   employmentType?: string;
+  jobGroup?: string;
 }) {
   const qs = new URLSearchParams({ from: params.from, to: params.to });
   if (params.deptId) qs.set("deptId", params.deptId);
   if (params.employmentType) qs.set("employmentType", params.employmentType);
+  if (params.jobGroup) qs.set("jobGroup", params.jobGroup);
   return apiFetch<{
     series: HeadcountMonth[];
     totals: { opening: number; hires: number; exits: number; closing: number };

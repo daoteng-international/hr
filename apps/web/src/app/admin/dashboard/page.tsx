@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [to, setTo] = useState(ym(now));
   const [deptId, setDeptId] = useState("");
   const [empType, setEmpType] = useState("");
+  const [jobGroup, setJobGroup] = useState("");
   const [depts, setDepts] = useState<Department[]>([]);
   const [series, setSeries] = useState<HeadcountMonth[]>([]);
   const [totals, setTotals] = useState<{ opening: number; hires: number; exits: number; closing: number } | null>(null);
@@ -32,6 +33,7 @@ export default function DashboardPage() {
         to,
         deptId: deptId || undefined,
         employmentType: empType || undefined,
+        jobGroup: jobGroup || undefined,
       });
       setSeries(res.series);
       setTotals(res.totals);
@@ -39,7 +41,7 @@ export default function DashboardPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
     }
-  }, [from, to, deptId, empType]);
+  }, [from, to, deptId, empType, jobGroup]);
 
   useEffect(() => {
     getDepartments().then((r) => setDepts(r.departments)).catch(() => null);
@@ -52,7 +54,7 @@ export default function DashboardPage() {
     <>
       <PageHeader title="Dashboard" desc="全公司在職人數分析（期初/新進/離職/期末）" />
       <Card>
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
           <div>
             <label className={labelCls}>起始月份</label>
             <input type="month" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -77,6 +79,15 @@ export default function DashboardPage() {
               <option value="regular">正職</option>
               <option value="parttime">兼職</option>
               <option value="contract">約聘</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>職務群組</label>
+            <select className={inputCls} value={jobGroup} onChange={(e) => setJobGroup(e.target.value)}>
+              <option value="">全部</option>
+              <option value="employee">一般員工</option>
+              <option value="manager">主管</option>
+              <option value="hr_admin">HR 管理員</option>
             </select>
           </div>
           <div className="flex items-end">

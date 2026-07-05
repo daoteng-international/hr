@@ -34,6 +34,8 @@ export default function EmployeesPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("employee");
   const [deptId, setDeptId] = useState("");
+  const [empNo, setEmpNo] = useState("");
+  const [employmentType, setEmploymentType] = useState("regular");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -41,6 +43,10 @@ export default function EmployeesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("employee");
+  const [editDeptId, setEditDeptId] = useState("");
+  const [editEmpNo, setEditEmpNo] = useState("");
+  const [editEmploymentType, setEditEmploymentType] = useState("regular");
+  const [editStatus, setEditStatus] = useState("active");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,12 +81,16 @@ export default function EmployeesPage() {
         password,
         role,
         deptId: deptId || undefined,
+        empNo: empNo.trim() || undefined,
+        employmentType,
       });
       setEmail("");
       setName("");
       setPassword("");
       setRole("employee");
       setDeptId("");
+      setEmpNo("");
+      setEmploymentType("regular");
       await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "邀請失敗");
@@ -91,13 +101,28 @@ export default function EmployeesPage() {
 
   async function saveEdit(id: string) {
     try {
-      await updateEmployee(id, { name: editName.trim() || undefined, role: editRole });
+      await updateEmployee(id, {
+        name: editName.trim() || undefined,
+        role: editRole,
+        deptId: editDeptId || null,
+        empNo: editEmpNo.trim() || null,
+        employmentType: editEmploymentType,
+        status: editStatus,
+      });
       setEditingId(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "更新失敗");
     }
   }
+
+  const deptName = (id: string | null) => depts.find((dept) => dept.id === id)?.name ?? "—";
+  const employmentTypeLabel = (value: string | null) => {
+    if (value === "regular") return "正職";
+    if (value === "parttime") return "兼職";
+    if (value === "contract") return "約聘";
+    return value ?? "—";
+  };
 
   async function onDeactivate(id: string) {
     if (!confirm("確定停用此員工？")) return;
@@ -129,6 +154,10 @@ export default function EmployeesPage() {
             <div>
               <label className={labelCls}>姓名</label>
               <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>工號</label>
+              <input className={inputCls} value={empNo} onChange={(e) => setEmpNo(e.target.value)} />
             </div>
             <div>
               <label className={labelCls}>初始密碼（≥8 碼）</label>
@@ -164,6 +193,14 @@ export default function EmployeesPage() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className={labelCls}>身分類別</label>
+              <select className={inputCls} value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}>
+                <option value="regular">正職</option>
+                <option value="parttime">兼職</option>
+                <option value="contract">約聘</option>
+              </select>
+            </div>
           </div>
           {formError && <ErrorText>{formError}</ErrorText>}
           <PrimaryButton type="submit" disabled={submitting}>
@@ -184,7 +221,7 @@ export default function EmployeesPage() {
             {rows.map((emp) => (
               <li key={emp.id} className="py-3">
                 {editingId === emp.id ? (
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
                     <div className="flex-1">
                       <label className={labelCls}>姓名</label>
                       <input
@@ -192,6 +229,10 @@ export default function EmployeesPage() {
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                       />
+                    </div>
+                    <div>
+                      <label className={labelCls}>工號</label>
+                      <input className={inputCls} value={editEmpNo} onChange={(e) => setEditEmpNo(e.target.value)} />
                     </div>
                     <div className="flex-1">
                       <label className={labelCls}>角色</label>
@@ -205,6 +246,30 @@ export default function EmployeesPage() {
                             {r.label}
                           </option>
                         ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>單位</label>
+                      <select className={inputCls} value={editDeptId} onChange={(e) => setEditDeptId(e.target.value)}>
+                        <option value="">（不指定）</option>
+                        {depts.map((dept) => (
+                          <option key={dept.id} value={dept.id}>{dept.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>身分類別</label>
+                      <select className={inputCls} value={editEmploymentType} onChange={(e) => setEditEmploymentType(e.target.value)}>
+                        <option value="regular">正職</option>
+                        <option value="parttime">兼職</option>
+                        <option value="contract">約聘</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>狀態</label>
+                      <select className={inputCls} value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                        <option value="active">在職</option>
+                        <option value="inactive">停用</option>
                       </select>
                     </div>
                     <div className="flex shrink-0 gap-2 pb-2">
@@ -228,6 +293,9 @@ export default function EmployeesPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-800">{emp.name}</span>
+                        {emp.emp_no && <span className="text-xs text-gray-500">工號 {emp.emp_no}</span>}
+                        <span className="text-xs text-gray-500">單位 {deptName(emp.dept_id)}</span>
+                        <span className="text-xs text-gray-500">{employmentTypeLabel(emp.employment_type)}</span>
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
                           {roleLabel(emp.role)}
                         </span>
@@ -244,6 +312,10 @@ export default function EmployeesPage() {
                           setEditingId(emp.id);
                           setEditName(emp.name);
                           setEditRole(emp.role);
+                          setEditDeptId(emp.dept_id ?? "");
+                          setEditEmpNo(emp.emp_no ?? "");
+                          setEditEmploymentType(emp.employment_type ?? "regular");
+                          setEditStatus(emp.status);
                         }}
                         className="text-sm text-gray-600 hover:underline"
                       >

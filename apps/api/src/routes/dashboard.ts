@@ -14,6 +14,7 @@ const querySchema = z.object({
   to: z.string().regex(monthRe, "to must be YYYY-MM"),
   deptId: z.string().uuid().optional(),
   employmentType: z.string().trim().min(1).optional(),
+  jobGroup: z.string().trim().min(1).optional(),
 })
 
 /** First day of the month after `ym` (YYYY-MM) as YYYY-MM-DD. */
@@ -65,7 +66,7 @@ dashboardRouter.get(
       res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() })
       return
     }
-    const { from, to, deptId, employmentType } = parsed.data
+    const { from, to, deptId, employmentType, jobGroup } = parsed.data
     if (from > to) {
       res.status(400).json({ error: "invalid_range" })
       return
@@ -78,6 +79,7 @@ dashboardRouter.get(
         .eq("tenant_id", tenantId)
       if (deptId) query = query.eq("dept_id", deptId)
       if (employmentType) query = query.eq("employment_type", employmentType)
+      if (jobGroup) query = query.eq("role", jobGroup)
       const { data, error } = await query
       if (error) {
         next(new Error(`GET /dashboard/headcount: ${error.message}`))

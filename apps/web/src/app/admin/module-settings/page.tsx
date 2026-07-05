@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, PageHeader, PrimaryButton, ErrorText, Empty } from "@/components/admin-ui";
-import { getRuleConfig, saveRuleConfig, type RuleConfigResponse } from "@/lib/admin-api";
+import { Card, PageHeader, PrimaryButton, ErrorText, Empty, inputCls, labelCls } from "@/components/admin-ui";
+import {
+  getBranding,
+  getRuleConfig,
+  saveRuleConfig,
+  saveTenantSettings,
+  type RuleConfigResponse,
+  type TenantFeatures,
+} from "@/lib/admin-api";
 
 const CALENDARS = [
   { name: "台灣行事曆", years: ["2025 已發佈", "2026 已發佈", "2027 待新增"] },
@@ -12,6 +19,10 @@ const CALENDARS = [
 
 export default function ModuleSettingsPage() {
   const [ruleConfig, setRuleConfig] = useState<RuleConfigResponse | null>(null);
+  const [features, setFeatures] = useState<TenantFeatures>({});
+  const [myDataRequiresApproval, setMyDataRequiresApproval] = useState(true);
+  const [editableFields, setEditableFields] = useState("basic,contact,education,certification,workHistory");
+  const [attachmentLimitKb, setAttachmentLimitKb] = useState("300");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -23,6 +34,20 @@ export default function ModuleSettingsPage() {
         setDraft(JSON.stringify(res.config, null, 2));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "載入模組設定失敗"));
+    getBranding()
+      .then((res) => {
+        const nextFeatures = res.features ?? {};
+        const formParameters = (nextFeatures.formParameters as {
+          myDataRequiresApproval?: boolean;
+          editableFields?: string[];
+          attachmentLimitKb?: number;
+        } | undefined) ?? {};
+        setFeatures(nextFeatures);
+        setMyDataRequiresApproval(formParameters.myDataRequiresApproval ?? true);
+        setEditableFields((formParameters.editableFields ?? ["basic", "contact", "education", "certification", "workHistory"]).join(","));
+        setAttachmentLimitKb(String(formParameters.attachmentLimitKb ?? 300));
+      })
+      .catch(() => null);
   }, []);
 
   async function onSave() {
@@ -34,6 +59,29 @@ export default function ModuleSettingsPage() {
       setMessage(`規則設定已儲存，版本 ${res.version}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "儲存失敗");
+    }
+  }
+
+  async function onSaveFormParameters() {
+    setError(null);
+    setMessage(null);
+    try {
+      const nextFeatures = {
+        ...features,
+        formParameters: {
+          myDataRequiresApproval,
+          editableFields: editableFields
+            .split(",")
+            .map((field) => field.trim())
+            .filter(Boolean),
+          attachmentLimitKb: Number(attachmentLimitKb) || 300,
+        },
+      };
+      const saved = await saveTenantSettings({ features: nextFeatures });
+      setFeatures(saved.features ?? nextFeatures);
+      setMessage("表單參數已儲存");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "儲存表單參數失敗");
     }
   }
 
@@ -93,6 +141,41 @@ export default function ModuleSettingsPage() {
         )}
         {message && <p className="mt-3 text-sm text-green-600">{message}</p>}
         {error && <div className="mt-3"><ErrorText>{error}</ErrorText></div>}
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">表單參數設定</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <label className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={myDataRequiresApproval}
+              onChange={(event) => setMyDataRequiresApproval(event.target.checked)}
+            />
+            My Data 修改需送審
+          </label>
+          <div>
+            <label className={labelCls}>可編輯資料區塊</label>
+            <input
+              className={inputCls}
+              value={editableFields}
+              onChange={(event) => setEditableFields(event.target.value)}
+              placeholder="basic,contact,education"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>附件上限 KB</label>
+            <input
+              type="number"
+              className={inputCls}
+              value={attachmentLimitKb}
+              onChange={(event) => setAttachmentLimitKb(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-4">
+          <PrimaryButton onClick={onSaveFormParameters}>儲存表單參數</PrimaryButton>
+        </div>
       </Card>
     </>
   );
