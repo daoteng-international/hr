@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Card, PageHeader, Empty, ErrorText, PrimaryButton } from "@/components/admin-ui";
 import {
   getPunchRecordsAdmin,
   createManualPunch,
+  importManualPunches,
   getEmployees,
   getDepartments,
   type PunchRecord,
@@ -42,6 +43,11 @@ const TYPE_GROUPS: { label: string; value: "" | PunchRecord["type"] }[] = [
   { label: "外出結束", value: "outing_out" },
 ];
 
+function csvCell(value: string | number | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
 export default function PunchRecordsPage() {
   const [records, setRecords] = useState<PunchRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -65,6 +71,9 @@ export default function PunchRecordsPage() {
   const [mAt, setMAt] = useState("");
   const [mType, setMType] = useState<PunchRecord["type"]>("in");
   const [mMsg, setMMsg] = useState<string | null>(null);
+  const [csv, setCsv] = useState("");
+  const [csvMsg, setCsvMsg] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +119,18 @@ export default function PunchRecordsPage() {
       ? `${record.lat.toFixed(5)}, ${record.lng.toFixed(5)}`
       : "—";
 
+  const sourceSummary = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const record of records) totals.set(record.source ?? "unknown", (totals.get(record.source ?? "unknown") ?? 0) + 1);
+    return totals;
+  }, [records]);
+
+  const typeSummary = useMemo(() => {
+    const totals = new Map<PunchRecord["type"], number>();
+    for (const record of records) totals.set(record.type, (totals.get(record.type) ?? 0) + 1);
+    return totals;
+  }, [records]);
+
   async function onManual(e: FormEvent) {
     e.preventDefault();
     setMMsg(null);
@@ -125,6 +146,49 @@ export default function PunchRecordsPage() {
     } catch (err) {
       setMMsg(err instanceof Error ? err.message : "補登失敗");
     }
+  }
+
+  async function onImport(e: FormEvent) {
+    e.preventDefault();
+    setCsvMsg(null);
+    if (!csv.trim()) {
+      setCsvMsg("請貼上 CSV 內容");
+      return;
+    }
+    setImporting(true);
+    try {
+      const res = await importManualPunches(csv);
+      const errors = res.errors.length ? `，${res.errors.length} 筆需修正` : "";
+      setCsvMsg(`已批次補登 ${res.count} 筆${errors}`);
+      await load();
+    } catch (err) {
+      setCsvMsg(err instanceof Error ? err.message : "批次補登失敗");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function exportCsv() {
+    const header = ["department", "employee", "date", "time", "type", "source", "lat", "lng", "deviceId"];
+    const rows = records.map((record) => [
+      deptName(record.employee_id),
+      empLabel(record.employee_id),
+      record.punch_at.slice(0, 10),
+      record.punch_at.slice(11, 16),
+      TYPE_LABEL[record.type],
+      SOURCE_LABEL[record.source ?? ""] ?? record.source ?? "",
+      record.lat,
+      record.lng,
+      record.device_id,
+    ]);
+    const content = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `punch-records-${fFrom || "all"}-${fTo || "all"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -178,10 +242,68 @@ export default function PunchRecordsPage() {
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
+            <h2 className="text-base font-semibold text-gray-900">批次打卡補登</h2>
+            <p className="mt-1 text-sm text-gray-500">欄位：employeeId,punchAt,type；punchAt 請使用 ISO 時間。</p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">CSV import</span>
+        </div>
+        <form onSubmit={onImport} className="space-y-3">
+          <textarea
+            className={`${inputCls} min-h-32 font-mono`}
+            value={csv}
+            onChange={(e) => setCsv(e.target.value)}
+            placeholder={"employeeId,punchAt,type\n員工UUID,2026-07-06T09:00:00.000Z,in\n員工UUID,2026-07-06T18:00:00.000Z,out"}
+          />
+          <PrimaryButton type="submit" disabled={importing}>{importing ? "匯入中…" : "批次補登"}</PrimaryButton>
+          {csvMsg && <p className="text-sm text-gray-600">{csvMsg}</p>}
+        </form>
+      </Card>
+
+      <Card>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
             <h2 className="text-base font-semibold text-gray-900">打卡紀錄</h2>
             <p className="mt-1 text-sm text-gray-500">資料類型、日期、單位、工號姓名、地點與打卡方式皆可查詢。</p>
           </div>
-          <div className="text-sm text-gray-500">共 {records.length} 筆</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={records.length === 0}
+              className="rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 disabled:opacity-50"
+            >
+              匯出 CSV
+            </button>
+            <div className="text-sm text-gray-500">共 {records.length} 筆</div>
+          </div>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-xs text-gray-500">上班/下班</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">
+              {(typeSummary.get("in") ?? 0) + (typeSummary.get("out") ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-xs text-gray-500">休息/外出</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">
+              {(typeSummary.get("break_in") ?? 0) +
+                (typeSummary.get("break_out") ?? 0) +
+                (typeSummary.get("outing_in") ?? 0) +
+                (typeSummary.get("outing_out") ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-xs text-gray-500">補登</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">{sourceSummary.get("manual") ?? 0}</p>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-3">
+            <p className="text-xs text-gray-500">有定位</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">
+              {records.filter((record) => record.lat != null && record.lng != null).length}
+            </p>
+          </div>
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2">

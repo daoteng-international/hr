@@ -284,6 +284,141 @@ const manualSchema = z.object({
   type: z.enum(["in", "out", "break_in", "break_out", "outing_in", "outing_out"]),
 })
 
+const manualImportSchema = z.object({
+  csv: z.string().min(1, "csv is required"),
+})
+
+type ManualPunchInput = z.infer<typeof manualSchema>
+
+function canonicalManualHeader(h: string): keyof ManualPunchInput | null {
+  switch (h.trim().toLowerCase()) {
+    case "employeeid":
+    case "employee_id":
+      return "employeeId"
+    case "punchat":
+    case "punch_at":
+      return "punchAt"
+    case "type":
+      return "type"
+    default:
+      return null
+  }
+}
+
+function parseManualPunchCsv(csv: string): {
+  records: ManualPunchInput[]
+  errors: { line: number; error: string }[]
+} {
+  const lines = csv.split(/\r?\n/).map((line) => line.trim())
+  const nonEmpty = lines.filter((line) => line.length > 0)
+  const result: { records: ManualPunchInput[]; errors: { line: number; error: string }[] } = {
+    records: [],
+    errors: [],
+  }
+  if (nonEmpty.length < 2) {
+    result.errors.push({ line: 0, error: "csv needs a header row and at least one data row" })
+    return result
+  }
+
+  const headers = nonEmpty[0].split(",").map(canonicalManualHeader)
+  nonEmpty.slice(1).forEach((line, i) => {
+    const lineNo = i + 2
+    const cells = line.split(",")
+    const raw: Record<string, string> = {}
+    headers.forEach((key, col) => {
+      if (!key) return
+      const val = (cells[col] ?? "").trim()
+      if (val.length > 0) raw[key] = val
+    })
+    const parsed = manualSchema.safeParse(raw)
+    if (!parsed.success) {
+      result.errors.push({
+        line: lineNo,
+        error: parsed.error.issues.map((issue) => issue.message).join("; "),
+      })
+      return
+    }
+    result.records.push(parsed.data)
+  })
+  return result
+}
+
+/**
+ * POST /punch/manual/import — HR-admin bulk back-fills manual punch records from
+ * CSV. Header row: employeeId,punchAt,type. Invalid lines are skipped and
+ * returned in errors so HR can fix only the failed rows.
+ */
+punchRouter.post(
+  "/punch/manual/import",
+  requireAuth,
+  requireTenant,
+  requireHrAdmin,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const parsed = manualImportSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    const { records, errors } = parseManualPunchCsv(parsed.data.csv)
+    if (records.length === 0) {
+      res.status(400).json({ error: "no_valid_rows", errors })
+      return
+    }
+
+    try {
+      const employeeIds = Array.from(new Set(records.map((record) => record.employeeId)))
+      const { data: employees, error: empErr } = await supabaseAdmin
+        .from("employees")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .in("id", employeeIds)
+      if (empErr) {
+        next(new Error(`POST /punch/manual/import (employees): ${empErr.message}`))
+        return
+      }
+
+      const validEmployees = new Set((employees ?? []).map((employee) => employee.id as string))
+      const rows = records
+        .map((record, index) => ({ record, line: index + 2 }))
+        .filter(({ record, line }) => {
+          if (validEmployees.has(record.employeeId)) return true
+          errors.push({ line, error: "employee_not_found" })
+          return false
+        })
+        .map(({ record }) => ({
+          tenant_id: tenantId,
+          employee_id: record.employeeId,
+          punch_at: record.punchAt,
+          type: record.type,
+          source: "manual",
+        }))
+
+      if (rows.length === 0) {
+        res.status(400).json({ error: "no_valid_rows", errors })
+        return
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("punch_records")
+        .insert(rows)
+        .select("id")
+      if (error) {
+        next(new Error(`POST /punch/manual/import: ${error.message}`))
+        return
+      }
+      res.status(201).json({
+        imported: (data ?? []).map((record) => record.id),
+        count: data?.length ?? 0,
+        errors,
+      })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 /**
  * POST /punch/manual — HR-admin creates a punch record on someone's behalf
  * (source='manual' so audits can tell back-fills from real punches). The target

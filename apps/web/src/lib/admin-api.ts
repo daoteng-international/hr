@@ -421,6 +421,36 @@ export function assignSchedule(body: {
   });
 }
 
+export function assignSchedulesBatch(
+  assignments: Array<{
+    employeeId: string;
+    workDate: string;
+    shiftId?: string | null;
+    status?: string;
+  }>,
+) {
+  return apiFetch<{ ids: string[]; count: number }>("/schedules", {
+    method: "POST",
+    body: JSON.stringify({ assignments }),
+  });
+}
+
+export function importSchedules(csv: string) {
+  return apiFetch<{ imported: string[]; count: number; errors: Array<{ line: number; error: string }> }>(
+    "/schedules/import",
+    {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    },
+  );
+}
+
+export function reviewSchedule(id: string, decision: "acknowledge" | "dispute") {
+  return apiFetch<{ id: string; status: string }>(`/schedules/${id}/${decision}`, {
+    method: "POST",
+  });
+}
+
 /* ------------------------------------------------------------ requests ----- */
 
 export type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
@@ -831,6 +861,16 @@ export function createManualPunch(body: {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function importManualPunches(csv: string) {
+  return apiFetch<{ imported: string[]; count: number; errors: Array<{ line: number; error: string }> }>(
+    "/punch/manual/import",
+    {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    },
+  );
 }
 
 /* ------------------------------------------------- payroll tax / 法規 --- */
