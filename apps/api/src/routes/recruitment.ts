@@ -180,6 +180,7 @@ hrCrud({
     title: str.optional(),
     deptId: z.string().uuid().nullable().optional(),
     headcount: z.number().int().positive().optional(),
+    employmentType: z.string().trim().nullable().optional(),
     description: z.string().trim().nullable().optional(),
     status: z.enum(["draft", "pending_approval", "open", "closed"]).optional(),
     isInternal: z.boolean().optional(),
@@ -198,6 +199,7 @@ hrCrud({
     if (d.title !== undefined) p.title = d.title
     if (d.deptId !== undefined) p.dept_id = d.deptId
     if (d.headcount !== undefined) p.headcount = d.headcount
+    if (d.employmentType !== undefined) p.employment_type = d.employmentType
     if (d.description !== undefined) p.description = d.description
     if (d.status !== undefined) p.status = d.status
     if (d.isInternal !== undefined) p.is_internal = d.isInternal
@@ -260,7 +262,7 @@ hrCrud({
   segment: "interviews",
   table: "interviews",
   cols: "id, tenant_id, candidate_id, interviewer_emp_id, scheduled_at, stage, result, notes, created_at",
-  listFilters: { candidateId: "candidate_id", result: "result" },
+  listFilters: { candidateId: "candidate_id", interviewerEmpId: "interviewer_emp_id", result: "result" },
   orderBy: "scheduled_at",
   create: z.object({
     candidateId: z.string().uuid(),

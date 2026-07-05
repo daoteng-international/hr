@@ -481,18 +481,29 @@ export interface Candidate {
   email: string | null;
   phone: string | null;
   source: string | null;
+  resume_url: string | null;
   status: "new" | "screening" | "interviewing" | "offered" | "hired" | "rejected";
   note: string | null;
   created_at: string;
 }
 
-export function getJobRequisitions() {
-  return apiFetch<{ "job-requisitions": JobRequisition[] }>("/job-requisitions");
+export function getJobRequisitions(params: {
+  status?: JobRequisition["status"];
+  isInternal?: boolean;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.isInternal !== undefined) qs.set("isInternal", String(params.isInternal));
+  return apiFetch<{ "job-requisitions": JobRequisition[] }>(
+    `/job-requisitions${qs.toString() ? `?${qs.toString()}` : ""}`,
+  );
 }
 
 export function createJobRequisition(body: {
   title: string;
+  deptId?: string | null;
   headcount?: number;
+  employmentType?: string;
   isInternal?: boolean;
   status?: "draft" | "pending_approval" | "open" | "closed";
   description?: string;
@@ -505,7 +516,15 @@ export function createJobRequisition(body: {
 
 export function updateJobRequisition(
   id: string,
-  body: { status?: "draft" | "pending_approval" | "open" | "closed"; isInternal?: boolean },
+  body: {
+    title?: string;
+    deptId?: string | null;
+    headcount?: number;
+    employmentType?: string | null;
+    description?: string | null;
+    status?: "draft" | "pending_approval" | "open" | "closed";
+    isInternal?: boolean;
+  },
 ) {
   return apiFetch<{ id: string }>(`/job-requisitions/${id}`, {
     method: "PATCH",
@@ -517,9 +536,12 @@ export function deleteJobRequisition(id: string) {
   return apiFetch<{ id: string }>(`/job-requisitions/${id}`, { method: "DELETE" });
 }
 
-export function getCandidates(requisitionId?: string) {
-  const qs = requisitionId ? `?requisitionId=${requisitionId}` : "";
-  return apiFetch<{ candidates: Candidate[] }>(`/candidates${qs}`);
+export function getCandidates(params?: string | { requisitionId?: string; status?: Candidate["status"] }) {
+  const filters = typeof params === "string" ? { requisitionId: params } : (params ?? {});
+  const qs = new URLSearchParams();
+  if (filters.requisitionId) qs.set("requisitionId", filters.requisitionId);
+  if (filters.status) qs.set("status", filters.status);
+  return apiFetch<{ candidates: Candidate[] }>(`/candidates${qs.toString() ? `?${qs.toString()}` : ""}`);
 }
 
 export function createCandidate(body: {
@@ -528,6 +550,9 @@ export function createCandidate(body: {
   phone?: string;
   requisitionId?: string | null;
   source?: string;
+  resumeUrl?: string;
+  status?: Candidate["status"];
+  note?: string;
 }) {
   return apiFetch<{ id: string }>("/candidates", {
     method: "POST",
@@ -537,7 +562,16 @@ export function createCandidate(body: {
 
 export function updateCandidate(
   id: string,
-  body: { status?: Candidate["status"]; note?: string },
+  body: {
+    name?: string;
+    requisitionId?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    source?: string | null;
+    resumeUrl?: string | null;
+    status?: Candidate["status"];
+    note?: string | null;
+  },
 ) {
   return apiFetch<{ id: string }>(`/candidates/${id}`, {
     method: "PATCH",
@@ -854,9 +888,17 @@ export interface Interview {
   notes: string | null;
 }
 
-export function getInterviews(candidateId?: string) {
-  const qs = candidateId ? `?candidateId=${candidateId}` : "";
-  return apiFetch<{ interviews: Interview[] }>(`/interviews${qs}`);
+export function getInterviews(params?: string | {
+  candidateId?: string;
+  interviewerEmpId?: string;
+  result?: Interview["result"];
+}) {
+  const filters = typeof params === "string" ? { candidateId: params } : (params ?? {});
+  const qs = new URLSearchParams();
+  if (filters.candidateId) qs.set("candidateId", filters.candidateId);
+  if (filters.interviewerEmpId) qs.set("interviewerEmpId", filters.interviewerEmpId);
+  if (filters.result) qs.set("result", filters.result);
+  return apiFetch<{ interviews: Interview[] }>(`/interviews${qs.toString() ? `?${qs.toString()}` : ""}`);
 }
 
 export function createInterview(body: {
@@ -873,7 +915,13 @@ export function createInterview(body: {
 
 export function updateInterview(
   id: string,
-  body: { result?: "pending" | "pass" | "fail"; notes?: string; scheduledAt?: string },
+  body: {
+    interviewerEmpId?: string | null;
+    result?: "pending" | "pass" | "fail";
+    notes?: string | null;
+    scheduledAt?: string | null;
+    stage?: string | null;
+  },
 ) {
   return apiFetch<{ id: string }>(`/interviews/${id}`, {
     method: "PATCH",
@@ -890,18 +938,32 @@ export interface Offer {
   note: string | null;
 }
 
-export function getOffers() {
-  return apiFetch<{ offers: Offer[] }>("/offers");
+export function getOffers(params: { candidateId?: string; status?: Offer["status"] } = {}) {
+  const qs = new URLSearchParams();
+  if (params.candidateId) qs.set("candidateId", params.candidateId);
+  if (params.status) qs.set("status", params.status);
+  return apiFetch<{ offers: Offer[] }>(`/offers${qs.toString() ? `?${qs.toString()}` : ""}`);
 }
 
-export function createOffer(body: { candidateId: string; salary?: number; startDate?: string }) {
+export function createOffer(body: {
+  candidateId: string;
+  salary?: number;
+  startDate?: string;
+  status?: Offer["status"];
+  note?: string;
+}) {
   return apiFetch<{ id: string }>("/offers", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateOffer(id: string, body: { status?: Offer["status"]; note?: string }) {
+export function updateOffer(id: string, body: {
+  salary?: number | null;
+  startDate?: string | null;
+  status?: Offer["status"];
+  note?: string | null;
+}) {
   return apiFetch<{ id: string }>(`/offers/${id}`, {
     method: "PATCH",
     body: JSON.stringify(body),
