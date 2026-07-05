@@ -15,6 +15,7 @@ const createSchema = z.object({
   deptId: z.string().uuid().nullish(),
   empNo: z.string().trim().min(1).optional(),
   employmentType: z.string().trim().min(1).optional(),
+  hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 const updateSchema = z
@@ -25,6 +26,8 @@ const updateSchema = z
     name: z.string().trim().min(1).optional(),
     empNo: z.string().trim().min(1).nullable().optional(),
     employmentType: z.string().trim().min(1).optional(),
+    hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    terminatedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, { message: "no fields to update" })
 
@@ -46,7 +49,7 @@ employeesRouter.get(
     try {
       const { data, error } = await supabaseAdmin
         .from("employees")
-        .select("id, tenant_id, user_id, name, role, dept_id, emp_no, employment_type, status, created_at")
+        .select("id, tenant_id, user_id, name, role, dept_id, emp_no, employment_type, hire_date, terminated_at, status, created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: true })
 
@@ -79,7 +82,7 @@ employeesRouter.post(
       res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
       return
     }
-    const { email, name, password, role, deptId, empNo, employmentType } = parsed.data
+    const { email, name, password, role, deptId, empNo, employmentType, hireDate } = parsed.data
 
     try {
       const { data: created, error: userErr } = await supabaseAdmin.auth.admin.createUser({
@@ -104,6 +107,7 @@ employeesRouter.post(
           dept_id: deptId ?? null,
           emp_no: empNo ?? null,
           employment_type: employmentType ?? "regular",
+          hire_date: hireDate ?? null,
           status: "active",
         })
         .select("id")
@@ -149,6 +153,8 @@ employeesRouter.patch(
     if (parsed.data.name !== undefined) patch.name = parsed.data.name
     if (parsed.data.empNo !== undefined) patch.emp_no = parsed.data.empNo
     if (parsed.data.employmentType !== undefined) patch.employment_type = parsed.data.employmentType
+    if (parsed.data.hireDate !== undefined) patch.hire_date = parsed.data.hireDate
+    if (parsed.data.terminatedAt !== undefined) patch.terminated_at = parsed.data.terminatedAt
 
     try {
       const { data, error } = await supabaseAdmin

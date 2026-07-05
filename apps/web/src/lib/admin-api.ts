@@ -79,6 +79,8 @@ export interface Employee {
   dept_id: string | null;
   emp_no: string | null;
   employment_type: string | null;
+  hire_date: string | null;
+  terminated_at: string | null;
   status: string;
   created_at: string;
 }
@@ -96,6 +98,7 @@ export function inviteEmployee(body: {
   deptId?: string | null;
   empNo?: string;
   employmentType?: string;
+  hireDate?: string;
 }) {
   return apiFetch<{ employeeId: string; userId: string }>("/employees", {
     method: "POST",
@@ -112,6 +115,8 @@ export function updateEmployee(
     deptId?: string | null;
     empNo?: string | null;
     employmentType?: string;
+    hireDate?: string | null;
+    terminatedAt?: string | null;
   },
 ) {
   return apiFetch<{ id: string }>(`/employees/${id}`, {
@@ -125,6 +130,212 @@ export function deactivateEmployee(id: string) {
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+/* ---------------------------------------------------- employee profile ----- */
+
+export interface EmployeeProfile {
+  english_name: string | null;
+  nationality: string | null;
+  id_type: string | null;
+  id_number: string | null;
+  id_expiry: string | null;
+  id_type2: string | null;
+  id_number2: string | null;
+  id_expiry2: string | null;
+  id_type3: string | null;
+  id_number3: string | null;
+  id_expiry3: string | null;
+  entry_date: string | null;
+  birthday: string | null;
+  gender: string | null;
+  marital_status: string | null;
+  phone: string | null;
+  phone_mobile2: string | null;
+  phone_landline: string | null;
+  registered_address: string | null;
+  address: string | null;
+  company_email: string | null;
+  personal_email: string | null;
+  emergency_contact: string | null;
+  emergency_relationship: string | null;
+  emergency_phone: string | null;
+  note: string | null;
+}
+
+export interface SaveProfileBody {
+  englishName?: string | null;
+  nationality?: string | null;
+  idType?: string | null;
+  idNumber?: string | null;
+  idExpiry?: string | null;
+  idType2?: string | null;
+  idNumber2?: string | null;
+  idExpiry2?: string | null;
+  idType3?: string | null;
+  idNumber3?: string | null;
+  idExpiry3?: string | null;
+  entryDate?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
+  maritalStatus?: string | null;
+  phone?: string | null;
+  phoneMobile2?: string | null;
+  phoneLandline?: string | null;
+  registeredAddress?: string | null;
+  address?: string | null;
+  companyEmail?: string | null;
+  personalEmail?: string | null;
+  emergencyContact?: string | null;
+  emergencyRelationship?: string | null;
+  emergencyPhone?: string | null;
+  note?: string | null;
+}
+
+export interface Education {
+  id: string;
+  school: string;
+  is_highest: boolean;
+  major_category: string | null;
+  major: string | null;
+  degree: string | null;
+  study_type: string | null;
+  study_status: string | null;
+  region: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface Certification {
+  id: string;
+  name: string;
+  issuer: string | null;
+  issued_date: string | null;
+  expiry_date: string | null;
+}
+
+export interface WorkHistory {
+  id: string;
+  company: string;
+  title: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  description: string | null;
+}
+
+export interface JobHistoryEntry {
+  id: string;
+  effective_date: string;
+  action: string;
+  dept_id: string | null;
+  dept_name: string | null;
+  grade: string | null;
+  title: string | null;
+}
+
+export interface ProfileAggregate {
+  basic: {
+    id: string;
+    name: string;
+    emp_no: string | null;
+    dept_id: string | null;
+    employment_type: string;
+    hire_date: string | null;
+    role: string;
+    status: string;
+  };
+  profile: EmployeeProfile | null;
+  educations: Education[];
+  certifications: Certification[];
+  workHistory: WorkHistory[];
+  jobHistory: JobHistoryEntry[];
+  seniorityDays: number | null;
+  seniority: {
+    internalYears: number | null;
+    gradeYears: number | null;
+    unitYears: number | null;
+  };
+}
+
+export function getEmployeeProfile(employeeId: string) {
+  return apiFetch<ProfileAggregate>(`/employees/${employeeId}/profile`);
+}
+
+export function saveEmployeeProfile(employeeId: string, body: SaveProfileBody) {
+  return apiFetch<{ id: string }>(`/employees/${employeeId}/profile`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function addEmployeeEducation(
+  employeeId: string,
+  body: {
+    school: string;
+    isHighest?: boolean;
+    majorCategory?: string;
+    major?: string;
+    degree?: string;
+    studyType?: string;
+    studyStatus?: string;
+    region?: string;
+    startDate?: string;
+    endDate?: string;
+  },
+) {
+  return apiFetch<{ id: string }>(`/employees/${employeeId}/educations`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function addEmployeeCertification(
+  employeeId: string,
+  body: { name: string; issuer?: string; issuedDate?: string; expiryDate?: string },
+) {
+  return apiFetch<{ id: string }>(`/employees/${employeeId}/certifications`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function addEmployeeWorkHistory(
+  employeeId: string,
+  body: { company: string; title?: string; startDate?: string; endDate?: string; description?: string },
+) {
+  return apiFetch<{ id: string }>(`/employees/${employeeId}/work-history`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function addEmployeeJobHistory(
+  employeeId: string,
+  body: {
+    effectiveDate: string;
+    action: string;
+    deptId?: string | null;
+    deptName?: string | null;
+    grade?: string | null;
+    title?: string | null;
+  },
+) {
+  return apiFetch<{ id: string }>(`/employees/${employeeId}/job-history`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteEmployeeEducation(id: string) {
+  return apiFetch<{ id: string }>(`/educations/${id}`, { method: "DELETE" });
+}
+
+export function deleteEmployeeCertification(id: string) {
+  return apiFetch<{ id: string }>(`/certifications/${id}`, { method: "DELETE" });
+}
+
+export function deleteEmployeeWorkHistory(id: string) {
+  return apiFetch<{ id: string }>(`/work-history/${id}`, { method: "DELETE" });
 }
 
 /* -------------------------------------------------------------- shifts ----- */
