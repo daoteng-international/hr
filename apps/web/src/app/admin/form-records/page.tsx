@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, PageHeader, ErrorText, Empty, PrimaryButton, inputCls, labelCls } from "@/components/admin-ui";
-import { getEmployees, getRequests, type Employee, type LeaveRequest, type RequestKind, type RequestStatus } from "@/lib/admin-api";
+import {
+  deleteRequest,
+  getEmployees,
+  getRequests,
+  remindRequest,
+  type Employee,
+  type LeaveRequest,
+  type RequestKind,
+  type RequestStatus,
+} from "@/lib/admin-api";
 
 const KIND_LABEL: Record<RequestKind, string> = {
   leave: "請假",
@@ -18,36 +27,88 @@ const STATUS_LABEL: Record<RequestStatus, string> = {
   cancelled: "已取消",
 };
 
+function downloadCsv(records: LeaveRequest[], employeeName: Map<string, string>) {
+  const header = ["申請日期", "申請人", "表單類型", "起日", "迄日", "時數", "地點/代理/給付", "原因", "關卡", "狀態"];
+  const rows = records.map((record) => [
+    record.created_at.slice(0, 10),
+    employeeName.get(record.employee_id) ?? record.employee_id,
+    KIND_LABEL[record.kind],
+    record.start_at.slice(0, 16).replace("T", " "),
+    record.end_at.slice(0, 16).replace("T", " "),
+    record.hours ?? "",
+    [record.location, record.agent_name, record.payout].filter(Boolean).join(" / "),
+    record.reason ?? record.remark ?? "",
+    `第 ${record.current_step} 關`,
+    STATUS_LABEL[record.status],
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replaceAll("\"", "\"\"")}"`).join(","))
+    .join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `form-records-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function FormRecordsPage() {
   const [records, setRecords] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [status, setStatus] = useState<"" | RequestStatus>("");
   const [kind, setKind] = useState<"" | RequestKind>("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const employeeName = useMemo(() => {
     const map = new Map<string, string>();
-    for (const employee of employees) map.set(employee.id, employee.name);
+    for (const employee of employees) {
+      map.set(employee.id, employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name);
+    }
     return map;
   }, [employees]);
 
   const filtered = useMemo(() => {
     const term = keyword.trim().toLowerCase();
+    if (!term) return records;
     return records.filter((record) => {
-      if (kind && record.kind !== kind) return false;
-      if (!term) return true;
       const name = employeeName.get(record.employee_id) ?? "";
-      return name.toLowerCase().includes(term) || record.employee_id.toLowerCase().includes(term);
+      const content = [record.reason, record.remark, record.location, record.agent_name].filter(Boolean).join(" ");
+      return (
+        name.toLowerCase().includes(term) ||
+        record.employee_id.toLowerCase().includes(term) ||
+        content.toLowerCase().includes(term)
+      );
     });
-  }, [employeeName, kind, keyword, records]);
+  }, [employeeName, keyword, records]);
+
+  const stats = useMemo(() => {
+    return {
+      total: filtered.length,
+      pending: filtered.filter((record) => record.status === "pending").length,
+      approved: filtered.filter((record) => record.status === "approved").length,
+      rejected: filtered.filter((record) => record.status === "rejected").length,
+    };
+  }, [filtered]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [reqRes, empRes] = await Promise.all([
-        getRequests(status || undefined),
+        getRequests({
+          status: status || undefined,
+          kind: kind || undefined,
+          employeeId: employeeId || undefined,
+          from: from || undefined,
+          to: to || undefined,
+        }),
         getEmployees(),
       ]);
       setRecords(reqRes.requests);
@@ -58,21 +119,72 @@ export default function FormRecordsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [employeeId, from, kind, status, to]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  async function remind(id: string) {
+    setBusyId(id);
+    setError(null);
+    setMessage(null);
+    try {
+      await remindRequest(id);
+      setMessage("已送出催簽提醒");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "催簽失敗");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm("確定刪除此表單紀錄？已核准紀錄不可刪除。")) return;
+    setBusyId(id);
+    setError(null);
+    setMessage(null);
+    try {
+      await deleteRequest(id);
+      setMessage("表單紀錄已刪除");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "刪除失敗");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
-      <PageHeader title="表單紀錄管理" desc="對齊 Apollo：查詢請假、加班、補卡、公出/出差的申請紀錄與狀態" />
+      <PageHeader title="表單紀錄管理" desc="查詢、催簽、刪除與匯出請假、加班、補卡、公出/出差表單" />
 
       <Card>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">表單總數</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{stats.total}</p>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4">
+            <p className="text-xs text-amber-700">簽核中</p>
+            <p className="mt-1 text-2xl font-semibold text-amber-800">{stats.pending}</p>
+          </div>
+          <div className="rounded-xl bg-green-50 p-4">
+            <p className="text-xs text-green-700">已核准</p>
+            <p className="mt-1 text-2xl font-semibold text-green-800">{stats.approved}</p>
+          </div>
+          <div className="rounded-xl bg-red-50 p-4">
+            <p className="text-xs text-red-700">已駁回</p>
+            <p className="mt-1 text-2xl font-semibold text-red-800">{stats.rejected}</p>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
           <div>
             <label className={labelCls}>表單狀態</label>
-            <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value as "" | RequestStatus)}>
+            <select className={inputCls} value={status} onChange={(event) => setStatus(event.target.value as "" | RequestStatus)}>
               <option value="">全部</option>
               <option value="pending">簽核中</option>
               <option value="approved">已核准</option>
@@ -82,7 +194,7 @@ export default function FormRecordsPage() {
           </div>
           <div>
             <label className={labelCls}>表單類型</label>
-            <select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value as "" | RequestKind)}>
+            <select className={inputCls} value={kind} onChange={(event) => setKind(event.target.value as "" | RequestKind)}>
               <option value="">全部</option>
               <option value="leave">請假</option>
               <option value="ot">加班</option>
@@ -90,17 +202,51 @@ export default function FormRecordsPage() {
               <option value="business_trip">公出/出差</option>
             </select>
           </div>
-          <div className="sm:col-span-2">
-            <label className={labelCls}>工號 / 姓名</label>
-            <input className={inputCls} value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="輸入姓名或員工 ID" />
+          <div className="lg:col-span-2">
+            <label className={labelCls}>員工</label>
+            <select className={inputCls} value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+              <option value="">全部人員</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>起日</label>
+            <input type="date" className={inputCls} value={from} onChange={(event) => setFrom(event.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>迄日</label>
+            <input type="date" className={inputCls} value={to} onChange={(event) => setTo(event.target.value)} />
           </div>
           <div className="flex items-end">
             <PrimaryButton onClick={() => void load()}>搜尋</PrimaryButton>
+          </div>
+          <div className="lg:col-span-5">
+            <label className={labelCls}>關鍵字</label>
+            <input
+              className={inputCls}
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜尋姓名、工號、原因、地點或代理人"
+            />
+          </div>
+          <div className="flex items-end lg:col-span-2">
+            <button
+              type="button"
+              onClick={() => downloadCsv(filtered, employeeName)}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+            >
+              匯出 CSV
+            </button>
           </div>
         </div>
       </Card>
 
       <Card>
+        {message && <p className="mb-3 text-sm text-green-600">{message}</p>}
         {error && <div className="mb-3"><ErrorText>{error}</ErrorText></div>}
         {loading ? (
           <Empty>載入中…</Empty>
@@ -116,23 +262,54 @@ export default function FormRecordsPage() {
                   <th className="py-2 pr-4">表單類型</th>
                   <th className="py-2 pr-4">內容</th>
                   <th className="py-2 pr-4">目前簽核人</th>
-                  <th className="py-2">狀態</th>
+                  <th className="py-2 pr-4">狀態</th>
+                  <th className="py-2">管理</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((record) => (
-                  <tr key={record.id} className="border-b border-gray-50">
-                    <td className="py-2 pr-4">{record.created_at.slice(0, 10)}</td>
-                    <td className="py-2 pr-4 font-medium text-gray-800">
+                  <tr key={record.id} className="border-b border-gray-50 align-top">
+                    <td className="py-3 pr-4">{record.created_at.slice(0, 10)}</td>
+                    <td className="py-3 pr-4 font-medium text-gray-800">
                       {employeeName.get(record.employee_id) ?? record.employee_id.slice(0, 8)}
                     </td>
-                    <td className="py-2 pr-4">{KIND_LABEL[record.kind]}</td>
-                    <td className="py-2 pr-4">
-                      {record.start_at.slice(0, 16).replace("T", " ")} → {record.end_at.slice(0, 16).replace("T", " ")}
-                      {record.hours != null ? `，${record.hours} 小時` : ""}
+                    <td className="py-3 pr-4">{KIND_LABEL[record.kind]}</td>
+                    <td className="max-w-sm py-3 pr-4 text-gray-600">
+                      <p>
+                        {record.start_at.slice(0, 16).replace("T", " ")} → {record.end_at.slice(0, 16).replace("T", " ")}
+                        {record.hours != null ? `，${record.hours} 小時` : ""}
+                      </p>
+                      {record.reason && <p className="text-xs text-gray-400">原因：{record.reason}</p>}
+                      {record.location && <p className="text-xs text-gray-400">地點：{record.location}</p>}
+                      {record.agent_name && <p className="text-xs text-gray-400">代理人：{record.agent_name}</p>}
+                      {record.payout && <p className="text-xs text-gray-400">給付：{record.payout === "pay" ? "加班費" : "補休"}</p>}
                     </td>
-                    <td className="py-2 pr-4">第 {record.current_step} 關</td>
-                    <td className="py-2">{STATUS_LABEL[record.status]}</td>
+                    <td className="py-3 pr-4">第 {record.current_step} 關</td>
+                    <td className="py-3 pr-4">
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        {STATUS_LABEL[record.status]}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void remind(record.id)}
+                          disabled={busyId === record.id || record.status !== "pending"}
+                          className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 disabled:opacity-50"
+                        >
+                          催簽
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void remove(record.id)}
+                          disabled={busyId === record.id || record.status === "approved"}
+                          className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 disabled:opacity-50"
+                        >
+                          刪除
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

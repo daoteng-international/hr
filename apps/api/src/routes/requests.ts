@@ -49,6 +49,16 @@ const decisionSchema = z.object({
 
 const querySchema = z.object({
   status: z.enum(["pending", "approved", "rejected", "cancelled"]).optional(),
+  kind: z.enum(KINDS).optional(),
+  employeeId: z.string().uuid().optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
+const batchDecisionSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+  action: z.enum(["approve", "reject"]),
+  comment: z.string().trim().min(1).optional(),
 })
 
 const REQUEST_COLS =
@@ -280,7 +290,7 @@ requestsRouter.get(
       res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() })
       return
     }
-    const { status } = parsed.data
+    const { status, kind, employeeId, from, to } = parsed.data
 
     try {
       const self = await resolveSelf(tenantId, userId)
@@ -292,6 +302,10 @@ requestsRouter.get(
           .select(REQUEST_COLS)
           .eq("tenant_id", tenantId)
         if (status) query = query.eq("status", status)
+        if (kind) query = query.eq("kind", kind)
+        if (employeeId) query = query.eq("employee_id", employeeId)
+        if (from) query = query.gte("start_at", `${from}T00:00:00.000Z`)
+        if (to) query = query.lte("start_at", `${to}T23:59:59.999Z`)
         const { data, error } = await query.order("created_at", { ascending: false })
         if (error) {
           next(new Error(`GET /requests (hr): ${error.message}`))
@@ -334,6 +348,9 @@ requestsRouter.get(
         .eq("tenant_id", tenantId)
         .or(orParts.join(","))
       if (status) query = query.eq("status", status)
+      if (kind) query = query.eq("kind", kind)
+      if (from) query = query.gte("start_at", `${from}T00:00:00.000Z`)
+      if (to) query = query.lte("start_at", `${to}T23:59:59.999Z`)
       const { data, error } = await query.order("created_at", { ascending: false })
       if (error) {
         next(new Error(`GET /requests (self): ${error.message}`))
@@ -515,6 +532,111 @@ async function decide(
   }
 }
 
+type DecisionActor = { id: string; role: string }
+
+type DecisionOutcome =
+  | { ok: true; id: string; status: "pending" | "approved" | "rejected"; currentStep: number }
+  | { ok: false; id: string; error: string }
+
+async function decideOneRequest(params: {
+  action: "approve" | "reject"
+  tenantId: string
+  requestId: string
+  actor: DecisionActor
+  comment?: string
+  allowHrOverride?: boolean
+}): Promise<DecisionOutcome> {
+  const { action, tenantId, requestId, actor, comment, allowHrOverride = false } = params
+
+  const { data: lr, error: lrErr } = await supabaseAdmin
+    .from("leave_requests")
+    .select("id, status, current_step, employee_id, kind, leave_type_id, hours, start_at, end_at, payout")
+    .eq("tenant_id", tenantId)
+    .eq("id", requestId)
+    .maybeSingle()
+  if (lrErr) return { ok: false, id: requestId, error: lrErr.message }
+  if (!lr) return { ok: false, id: requestId, error: "not_found" }
+  if (lr.status !== "pending") return { ok: false, id: requestId, error: "not_pending" }
+
+  const { data: step, error: stepErr } = await supabaseAdmin
+    .from("approval_steps")
+    .select("id, approver_emp_id, step_order")
+    .eq("tenant_id", tenantId)
+    .eq("request_id", requestId)
+    .eq("step_order", lr.current_step)
+    .maybeSingle()
+  if (stepErr) return { ok: false, id: requestId, error: stepErr.message }
+  if (!step) return { ok: false, id: requestId, error: "current_step_not_found" }
+
+  const canOverride = allowHrOverride && isHrRole(actor.role)
+  if (step.approver_emp_id !== actor.id && !canOverride) {
+    return { ok: false, id: requestId, error: "not_current_approver" }
+  }
+
+  const actedAt = new Date().toISOString()
+
+  if (action === "reject") {
+    const { error: upStepErr } = await supabaseAdmin
+      .from("approval_steps")
+      .update({ decision: "rejected", comment: comment ?? null, acted_at: actedAt })
+      .eq("id", step.id)
+    if (upStepErr) return { ok: false, id: requestId, error: upStepErr.message }
+
+    const { error: upReqErr } = await supabaseAdmin
+      .from("leave_requests")
+      .update({ status: "rejected" })
+      .eq("tenant_id", tenantId)
+      .eq("id", requestId)
+    if (upReqErr) return { ok: false, id: requestId, error: upReqErr.message }
+    return { ok: true, id: requestId, status: "rejected", currentStep: lr.current_step as number }
+  }
+
+  const { error: upStepErr } = await supabaseAdmin
+    .from("approval_steps")
+    .update({ decision: "approved", comment: comment ?? null, acted_at: actedAt })
+    .eq("id", step.id)
+  if (upStepErr) return { ok: false, id: requestId, error: upStepErr.message }
+
+  const { count, error: cntErr } = await supabaseAdmin
+    .from("approval_steps")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("request_id", requestId)
+    .gt("step_order", lr.current_step)
+  if (cntErr) return { ok: false, id: requestId, error: cntErr.message }
+
+  if ((count ?? 0) > 0) {
+    const nextStep = (lr.current_step as number) + 1
+    const { error: upReqErr } = await supabaseAdmin
+      .from("leave_requests")
+      .update({ current_step: nextStep })
+      .eq("tenant_id", tenantId)
+      .eq("id", requestId)
+    if (upReqErr) return { ok: false, id: requestId, error: upReqErr.message }
+    return { ok: true, id: requestId, status: "pending", currentStep: nextStep }
+  }
+
+  const { error: upReqErr } = await supabaseAdmin
+    .from("leave_requests")
+    .update({ status: "approved" })
+    .eq("tenant_id", tenantId)
+    .eq("id", requestId)
+  if (upReqErr) return { ok: false, id: requestId, error: upReqErr.message }
+
+  await applyApprovalEffects(supabaseAdmin, tenantId, {
+    id: lr.id as string,
+    employee_id: lr.employee_id as string,
+    kind: lr.kind as string,
+    leave_type_id: (lr.leave_type_id as string | null) ?? null,
+    hours: lr.hours as string | number | null,
+    start_at: lr.start_at as string,
+    end_at: lr.end_at as string,
+    payout: (lr.payout as string | null) ?? null,
+  })
+
+  return { ok: true, id: requestId, status: "approved", currentStep: lr.current_step as number }
+}
+
 /**
  * POST /requests/:id/approve — the current step's approver approves. Advances to
  * the next step (still pending) or, if it was the last step, marks the request
@@ -537,6 +659,154 @@ requestsRouter.post(
   requireAuth,
   requireTenant,
   (req: Request, res: Response, next: NextFunction) => decide("reject", req, res, next),
+)
+
+/**
+ * POST /requests/batch-decision — Apollo-style back-office batch approve/reject.
+ *
+ * The current approver may batch-action their own queue. HR/platform admins can
+ * also override tenant requests from the admin console, with each result
+ * returned independently so one bad row does not discard the whole batch.
+ */
+requestsRouter.post(
+  "/requests/batch-decision",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+
+    const parsed = batchDecisionSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      if (!self) {
+        res.status(403).json({ error: "not_an_employee" })
+        return
+      }
+
+      const results: DecisionOutcome[] = []
+      for (const requestId of parsed.data.ids) {
+        results.push(
+          await decideOneRequest({
+            action: parsed.data.action,
+            tenantId,
+            requestId,
+            actor: self,
+            comment: parsed.data.comment,
+            allowHrOverride: true,
+          }),
+        )
+      }
+
+      res.status(200).json({
+        ok: results.filter((result) => result.ok).length,
+        failed: results.filter((result) => !result.ok).length,
+        results,
+      })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * POST /requests/:id/remind — enqueue an in-app approval reminder to the
+ * current approver. HR/platform admins may remind any tenant request; the filer
+ * may remind their own pending request.
+ */
+requestsRouter.post(
+  "/requests/:id/remind",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+    const requestId = req.params.id
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      if (!self) {
+        res.status(403).json({ error: "not_an_employee" })
+        return
+      }
+
+      const { data: lr, error: lrErr } = await supabaseAdmin
+        .from("leave_requests")
+        .select("id, employee_id, kind, status, current_step")
+        .eq("tenant_id", tenantId)
+        .eq("id", requestId)
+        .maybeSingle()
+      if (lrErr) {
+        next(new Error(`POST /requests/${requestId}/remind (load): ${lrErr.message}`))
+        return
+      }
+      if (!lr) {
+        res.status(404).json({ error: "not_found" })
+        return
+      }
+      if (lr.status !== "pending") {
+        res.status(409).json({ error: "not_pending" })
+        return
+      }
+      if (!isHrRole(self.role) && lr.employee_id !== self.id) {
+        res.status(403).json({ error: "not_authorized_to_remind" })
+        return
+      }
+
+      const { data: step, error: stepErr } = await supabaseAdmin
+        .from("approval_steps")
+        .select("approver_emp_id")
+        .eq("tenant_id", tenantId)
+        .eq("request_id", requestId)
+        .eq("step_order", lr.current_step)
+        .maybeSingle()
+      if (stepErr) {
+        next(new Error(`POST /requests/${requestId}/remind (step): ${stepErr.message}`))
+        return
+      }
+      if (!step) {
+        res.status(409).json({ error: "current_step_not_found" })
+        return
+      }
+
+      const { error: insertErr } = await supabaseAdmin.from("notifications").insert({
+        tenant_id: tenantId,
+        employee_id: step.approver_emp_id,
+        type: "approval",
+        title: "待簽核提醒",
+        body: `有一張 ${lr.kind} 表單正在等待第 ${lr.current_step} 關簽核。`,
+        channel: "inapp",
+        status: "pending",
+        payload: {
+          requestId,
+          requestKind: lr.kind,
+          currentStep: lr.current_step,
+          remindedBy: self.id,
+        },
+      })
+      if (insertErr) {
+        next(new Error(`POST /requests/${requestId}/remind (notification): ${insertErr.message}`))
+        return
+      }
+
+      res.status(200).json({ notified: 1, employeeId: step.approver_emp_id })
+    } catch (err) {
+      next(err)
+    }
+  },
 )
 
 /**
@@ -596,6 +866,76 @@ requestsRouter.post(
         return
       }
       res.status(200).json({ status: "cancelled" })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * DELETE /requests/:id — HR admin removes a non-approved form record. Approved
+ * records are retained because they may already have ledger/payroll effects.
+ */
+requestsRouter.delete(
+  "/requests/:id",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+    const requestId = req.params.id
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      if (!isHrRole(self?.role)) {
+        res.status(403).json({ error: "hr_admin_required" })
+        return
+      }
+
+      const { data: lr, error: lrErr } = await supabaseAdmin
+        .from("leave_requests")
+        .select("id, status")
+        .eq("tenant_id", tenantId)
+        .eq("id", requestId)
+        .maybeSingle()
+      if (lrErr) {
+        next(new Error(`DELETE /requests/${requestId} (load): ${lrErr.message}`))
+        return
+      }
+      if (!lr) {
+        res.status(404).json({ error: "not_found" })
+        return
+      }
+      if (lr.status === "approved") {
+        res.status(409).json({ error: "approved_request_cannot_be_deleted" })
+        return
+      }
+
+      await supabaseAdmin
+        .from("request_attachments")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("request_id", requestId)
+      await supabaseAdmin
+        .from("approval_steps")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("request_id", requestId)
+      const { error: delErr } = await supabaseAdmin
+        .from("leave_requests")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("id", requestId)
+      if (delErr) {
+        next(new Error(`DELETE /requests/${requestId}: ${delErr.message}`))
+        return
+      }
+
+      res.status(200).json({ id: requestId })
     } catch (err) {
       next(err)
     }

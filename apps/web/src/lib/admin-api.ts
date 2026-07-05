@@ -225,14 +225,36 @@ export interface LeaveRequest {
   end_at: string;
   hours: number | null;
   reason: string | null;
+  agent_name: string | null;
+  payout: "pay" | "comp_time" | null;
+  trip_type: "outing" | "business_trip" | null;
+  location: string | null;
+  remark: string | null;
+  segments: unknown;
   status: RequestStatus;
   current_step: number;
   created_at: string;
 }
 
-export function getRequests(status?: RequestStatus) {
-  const qs = status ? `?status=${status}` : "";
-  return apiFetch<{ requests: LeaveRequest[] }>(`/requests${qs}`);
+export interface RequestQuery {
+  status?: RequestStatus;
+  kind?: RequestKind;
+  employeeId?: string;
+  from?: string;
+  to?: string;
+}
+
+export function getRequests(params?: RequestStatus | RequestQuery) {
+  const query: RequestQuery = typeof params === "string" ? { status: params } : (params ?? {});
+  const qs = new URLSearchParams();
+  if (query.status) qs.set("status", query.status);
+  if (query.kind) qs.set("kind", query.kind);
+  if (query.employeeId) qs.set("employeeId", query.employeeId);
+  if (query.from) qs.set("from", query.from);
+  if (query.to) qs.set("to", query.to);
+  return apiFetch<{ requests: LeaveRequest[] }>(
+    `/requests${qs.toString() ? `?${qs.toString()}` : ""}`,
+  );
 }
 
 export function approveRequest(id: string, comment?: string) {
@@ -247,6 +269,35 @@ export function rejectRequest(id: string, comment?: string) {
     method: "POST",
     body: JSON.stringify(comment ? { comment } : {}),
   });
+}
+
+export function batchDecideRequests(body: {
+  ids: string[];
+  action: "approve" | "reject";
+  comment?: string;
+}) {
+  return apiFetch<{
+    ok: number;
+    failed: number;
+    results: Array<
+      | { ok: true; id: string; status: RequestStatus; currentStep: number }
+      | { ok: false; id: string; error: string }
+    >;
+  }>("/requests/batch-decision", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function remindRequest(id: string) {
+  return apiFetch<{ notified: number; employeeId: string }>(`/requests/${id}/remind`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function deleteRequest(id: string) {
+  return apiFetch<{ id: string }>(`/requests/${id}`, { method: "DELETE" });
 }
 
 /* ------------------------------------------------------- announcements ----- */
@@ -557,6 +608,20 @@ export function importSalaryAdjustments(csv: string) {
   );
 }
 
+export interface SalaryAdjustment {
+  id: string;
+  employee_id: string;
+  effective_date: string;
+  new_salary: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export function getSalaryAdjustments(employeeId?: string) {
+  const qs = employeeId ? `?employeeId=${employeeId}` : "";
+  return apiFetch<{ "salary-adjustments": SalaryAdjustment[] }>(`/salary-adjustments${qs}`);
+}
+
 export function getNonEmployeeIncome() {
   return apiFetch<{ "non-employee-income": NonEmployeeIncome[] }>("/non-employee-income");
 }
@@ -667,6 +732,8 @@ export interface SalaryStructure {
   daily_wage: string | null;
   hourly_wage: string;
   allowances: Record<string, unknown>;
+  labor_insured_salary?: string | null;
+  health_insured_salary?: string | null;
 }
 
 export function getSalaryStructure(employeeId: string) {
@@ -680,6 +747,8 @@ export function putSalaryStructure(
     baseSalary?: number | null;
     dailyWage?: number | null;
     hourlyWage?: number;
+    laborInsuredSalary?: number | null;
+    healthInsuredSalary?: number | null;
   },
 ) {
   return apiFetch<{ id: string }>(`/salary/${employeeId}`, {

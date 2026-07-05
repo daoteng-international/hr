@@ -4,10 +4,14 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Card, PageHeader, Empty, ErrorText, PrimaryButton } from "@/components/admin-ui";
 import { apiDownload } from "@/lib/api-client";
 import {
+  getEmployees,
   importSalaryAdjustments,
+  getSalaryAdjustments,
   getNonEmployeeIncome,
   createNonEmployeeIncome,
   computeTax,
+  type Employee,
+  type SalaryAdjustment,
   type NonEmployeeIncome,
 } from "@/lib/admin-api";
 
@@ -17,9 +21,13 @@ const labelCls = "mb-1 block text-xs font-medium text-gray-500";
 
 export default function PayrollTaxPage() {
   const [error, setError] = useState<string | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   // 批次調薪
   const [csv, setCsv] = useState("employeeId,effectiveDate,newSalary,reason\n");
+  const [adjustments, setAdjustments] = useState<SalaryAdjustment[]>([]);
+  const [adjustmentEmployeeId, setAdjustmentEmployeeId] = useState("");
+  const [importErrors, setImportErrors] = useState<{ line: number; error: string }[]>([]);
   const [importMsg, setImportMsg] = useState<string | null>(null);
 
   // 非員工所得
@@ -30,7 +38,24 @@ export default function PayrollTaxPage() {
 
   // 補充保費試算
   const [calcAmount, setCalcAmount] = useState("50000");
+  const [withholdingAmount, setWithholdingAmount] = useState("60000");
   const [calcResult, setCalcResult] = useState<string | null>(null);
+  const [withholdingResult, setWithholdingResult] = useState<string | null>(null);
+
+  const empName = useCallback((id: string) => {
+    const employee = employees.find((item) => item.id === id);
+    if (!employee) return id.slice(0, 8);
+    return employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name;
+  }, [employees]);
+
+  const loadAdjustments = useCallback(async () => {
+    try {
+      const res = await getSalaryAdjustments(adjustmentEmployeeId || undefined);
+      setAdjustments(res["salary-adjustments"]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "載入調薪紀錄失敗");
+    }
+  }, [adjustmentEmployeeId]);
 
   const loadNei = useCallback(async () => {
     try {
@@ -42,15 +67,23 @@ export default function PayrollTaxPage() {
   }, []);
 
   useEffect(() => {
+    getEmployees().then((res) => setEmployees(res.employees)).catch(() => null);
     void loadNei();
   }, [loadNei]);
+
+  useEffect(() => {
+    void loadAdjustments();
+  }, [loadAdjustments]);
 
   async function onImport(e: FormEvent) {
     e.preventDefault();
     setImportMsg(null);
+    setImportErrors([]);
     try {
       const res = await importSalaryAdjustments(csv);
+      setImportErrors(res.errors);
       setImportMsg(`匯入 ${res.count} 筆，錯誤 ${res.errors.length} 筆`);
+      await loadAdjustments();
     } catch (err) {
       setError(err instanceof Error ? err.message : "匯入失敗");
     }
@@ -89,6 +122,20 @@ export default function PayrollTaxPage() {
     }
   }
 
+  async function onWithholdingCalc() {
+    try {
+      const res = await computeTax({
+        kind: "withholding",
+        monthlyPayment: Number(withholdingAmount),
+        rate: 0.05,
+        threshold: 0,
+      });
+      setWithholdingResult(`扣繳稅額：NT$ ${res.withholding ?? 0}（5% 試算）`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "扣繳試算失敗");
+    }
+  }
+
   return (
     <>
       <PageHeader title="薪資法規" desc="批次調薪、非員工所得、二代健保補充保費試算、申報匯出" />
@@ -121,6 +168,55 @@ export default function PayrollTaxPage() {
             {importMsg && <span className="text-sm text-green-600">{importMsg}</span>}
           </div>
         </form>
+        {importErrors.length > 0 && (
+          <ul className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">
+            {importErrors.map((row) => (
+              <li key={`${row.line}-${row.error}`}>第 {row.line} 行：{row.error}</li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">調薪紀錄查詢</h2>
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className={labelCls}>員工</label>
+            <select className={inputCls} value={adjustmentEmployeeId} onChange={(event) => setAdjustmentEmployeeId(event.target.value)}>
+              <option value="">全部員工</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>{empName(employee.id)}</option>
+              ))}
+            </select>
+          </div>
+          <PrimaryButton type="button" onClick={() => void loadAdjustments()}>查詢</PrimaryButton>
+        </div>
+        {adjustments.length === 0 ? (
+          <Empty>尚無調薪紀錄</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs text-gray-500">
+                  <th className="py-2 pr-4">員工</th>
+                  <th className="py-2 pr-4">生效日</th>
+                  <th className="py-2 pr-4">新薪資</th>
+                  <th className="py-2">原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adjustments.map((adjustment) => (
+                  <tr key={adjustment.id} className="border-b border-gray-50">
+                    <td className="py-2 pr-4 font-medium text-gray-800">{empName(adjustment.employee_id)}</td>
+                    <td className="py-2 pr-4">{adjustment.effective_date}</td>
+                    <td className="py-2 pr-4">{adjustment.new_salary}</td>
+                    <td className="py-2">{adjustment.reason ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       <Card>
@@ -170,6 +266,20 @@ export default function PayrollTaxPage() {
           </PrimaryButton>
         </div>
         {calcResult && <p className="mt-3 text-sm text-gray-700">{calcResult}</p>}
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-medium text-gray-500">所得稅扣繳試算</h2>
+        <div className="flex items-end gap-3">
+          <div>
+            <label className={labelCls}>給付總額</label>
+            <input className={inputCls} type="number" value={withholdingAmount} onChange={(event) => setWithholdingAmount(event.target.value)} />
+          </div>
+          <PrimaryButton type="button" onClick={onWithholdingCalc}>
+            試算
+          </PrimaryButton>
+        </div>
+        {withholdingResult && <p className="mt-3 text-sm text-gray-700">{withholdingResult}</p>}
       </Card>
     </>
   );

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Card, PageHeader, Empty, ErrorText, PrimaryButton } from "@/components/admin-ui";
+import { apiDownload } from "@/lib/api-client";
 import {
   getEmployees,
   getSalaryStructure,
@@ -34,9 +35,11 @@ export default function PayrollAdminPage() {
   const [empId, setEmpId] = useState("");
   const [method, setMethod] = useState<"monthly" | "by_attendance_days">("monthly");
   const [baseSalary, setBaseSalary] = useState("");
+  const [dailyWage, setDailyWage] = useState("");
   const [hourlyWage, setHourlyWage] = useState("");
   const [laborGrade, setLaborGrade] = useState("");
   const [healthGrade, setHealthGrade] = useState("");
+  const [employeeKeyword, setEmployeeKeyword] = useState("");
   const [salaryMsg, setSalaryMsg] = useState<string | null>(null);
   const [nhiDeps, setNhiDeps] = useState<NhiDependent[]>([]);
   const [taxDeps, setTaxDeps] = useState<TaxDependent[]>([]);
@@ -44,9 +47,34 @@ export default function PayrollAdminPage() {
   // 執行薪資作業 + 查詢/列印
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const [runPeriod, setRunPeriod] = useState(currentPeriod);
+  const [runEmployeeId, setRunEmployeeId] = useState("");
   const [runMsg, setRunMsg] = useState<string | null>(null);
   const [listPeriod, setListPeriod] = useState(currentPeriod);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
+
+  const visibleEmployees = useMemo(() => {
+    const term = employeeKeyword.trim().toLowerCase();
+    if (!term) return employees;
+    return employees.filter((employee) => {
+      return [employee.name, employee.emp_no, employee.id]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term));
+    });
+  }, [employeeKeyword, employees]);
+
+  const payslipSummary = useMemo(() => {
+    return payslips.reduce(
+      (summary, payslip) => {
+        summary.gross += Number(payslip.gross);
+        summary.overtime += Number(payslip.overtime_pay);
+        summary.night += Number(payslip.night_pay);
+        summary.bonus += Number(payslip.attendance_bonus);
+        summary.draft += payslip.status === "finalized" ? 0 : 1;
+        return summary;
+      },
+      { gross: 0, overtime: 0, night: 0, bonus: 0, draft: 0 },
+    );
+  }, [payslips]);
 
   useEffect(() => {
     getEmployees()
@@ -64,13 +92,14 @@ export default function PayrollAdminPage() {
       const { salary } = await getSalaryStructure(id);
       setMethod(salary.method);
       setBaseSalary(salary.base_salary ?? "");
+      setDailyWage(salary.daily_wage ?? "");
       setHourlyWage(salary.hourly_wage ?? "");
-      const sx = salary as unknown as Record<string, string | null>;
-      setLaborGrade(sx.labor_insured_salary ?? "");
-      setHealthGrade(sx.health_insured_salary ?? "");
+      setLaborGrade(salary.labor_insured_salary ?? "");
+      setHealthGrade(salary.health_insured_salary ?? "");
     } catch {
       setMethod("monthly");
       setBaseSalary("");
+      setDailyWage("");
       setHourlyWage("");
       setLaborGrade("");
       setHealthGrade("");
@@ -96,10 +125,11 @@ export default function PayrollAdminPage() {
       await putSalaryStructure(empId, {
         method,
         baseSalary: baseSalary ? Number(baseSalary) : null,
+        dailyWage: dailyWage ? Number(dailyWage) : null,
         hourlyWage: hourlyWage ? Number(hourlyWage) : 0,
         laborInsuredSalary: laborGrade ? Number(laborGrade) : null,
         healthInsuredSalary: healthGrade ? Number(healthGrade) : null,
-      } as Parameters<typeof putSalaryStructure>[1] & { laborInsuredSalary?: number | null; healthInsuredSalary?: number | null });
+      });
       setSalaryMsg("已儲存");
     } catch (err) {
       setSalaryMsg(err instanceof Error ? err.message : "儲存失敗");
@@ -128,7 +158,7 @@ export default function PayrollAdminPage() {
     e.preventDefault();
     setRunMsg(null);
     try {
-      await runPayroll(runPeriod);
+      await runPayroll(runPeriod, runEmployeeId || undefined);
       setRunMsg(`已執行 ${runPeriod} 薪資作業`);
       if (listPeriod === runPeriod) await loadPayslips();
     } catch (err) {
@@ -150,7 +180,20 @@ export default function PayrollAdminPage() {
     void loadPayslips();
   }, [loadPayslips]);
 
-  const empName = (id: string) => employees.find((e) => e.id === id)?.name ?? id.slice(0, 8);
+  const empName = (id: string) => {
+    const employee = employees.find((item) => item.id === id);
+    if (!employee) return id.slice(0, 8);
+    return employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name;
+  };
+
+  async function finalizeAll() {
+    const drafts = payslips.filter((payslip) => payslip.status !== "finalized");
+    if (drafts.length === 0) return;
+    for (const payslip of drafts) {
+      await finalizePayslip(payslip.id);
+    }
+    await loadPayslips();
+  }
 
   async function printPayslip(id: string) {
     try {
@@ -181,14 +224,25 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
 
       <Card>
         <h2 className="mb-4 text-sm font-medium text-gray-500">員工薪資保險資料</h2>
-        <div className="mb-4">
-          <label className={labelCls}>員工（工號/姓名）</label>
-          <select className={inputCls} value={empId} onChange={(e) => setEmpId(e.target.value)}>
-            <option value="">請選擇</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </select>
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label className={labelCls}>工號 / 身分證 / 姓名搜尋</label>
+            <input
+              className={inputCls}
+              value={employeeKeyword}
+              onChange={(event) => setEmployeeKeyword(event.target.value)}
+              placeholder="輸入工號、姓名或員工 ID"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>員工</label>
+            <select className={inputCls} value={empId} onChange={(event) => setEmpId(event.target.value)}>
+              <option value="">請選擇</option>
+              {visibleEmployees.map((employee) => (
+                <option key={employee.id} value={employee.id}>{empName(employee.id)}</option>
+              ))}
+            </select>
+          </div>
         </div>
         {empId && (
           <>
@@ -208,6 +262,10 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
                 <div>
                   <label className={labelCls}>本薪（月）</label>
                   <input type="number" className={inputCls} value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelCls}>日薪</label>
+                  <input type="number" className={inputCls} value={dailyWage} onChange={(event) => setDailyWage(event.target.value)} />
                 </div>
                 <div>
                   <label className={labelCls}>時薪（加班費基準）</label>
@@ -271,6 +329,15 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
             <label className={labelCls}>薪資期間</label>
             <input type="month" className={inputCls} value={runPeriod} onChange={(e) => setRunPeriod(e.target.value)} />
           </div>
+          <div>
+            <label className={labelCls}>執行對象</label>
+            <select className={inputCls} value={runEmployeeId} onChange={(event) => setRunEmployeeId(event.target.value)}>
+              <option value="">全部員工</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>{empName(employee.id)}</option>
+              ))}
+            </select>
+          </div>
           <PrimaryButton type="submit">執行</PrimaryButton>
           {runMsg && <span className="text-sm text-green-600">{runMsg}</span>}
         </form>
@@ -284,6 +351,39 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
             <input type="month" className={inputCls} value={listPeriod} onChange={(e) => setListPeriod(e.target.value)} />
           </div>
           <PrimaryButton type="button" onClick={() => void loadPayslips()}>查詢</PrimaryButton>
+          <button
+            type="button"
+            onClick={() => apiDownload(`/reports/payroll?period=${listPeriod}&format=csv`, `薪資報表_${listPeriod}.csv`).catch((downloadError) => setError(downloadError.message))}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+          >
+            匯出 CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => void finalizeAll()}
+            disabled={payslipSummary.draft === 0}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-50"
+          >
+            全部定案
+          </button>
+        </div>
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">應發合計</p>
+            <p className="mt-1 text-xl font-semibold text-slate-900">{payslipSummary.gross}</p>
+          </div>
+          <div className="rounded-xl bg-blue-50 p-4">
+            <p className="text-xs text-blue-600">加班費</p>
+            <p className="mt-1 text-xl font-semibold text-blue-700">{payslipSummary.overtime}</p>
+          </div>
+          <div className="rounded-xl bg-indigo-50 p-4">
+            <p className="text-xs text-indigo-600">夜間加給</p>
+            <p className="mt-1 text-xl font-semibold text-indigo-700">{payslipSummary.night}</p>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4">
+            <p className="text-xs text-amber-700">草稿筆數</p>
+            <p className="mt-1 text-xl font-semibold text-amber-800">{payslipSummary.draft}</p>
+          </div>
         </div>
         {payslips.length === 0 ? (
           <Empty>查無薪資單</Empty>
@@ -296,6 +396,8 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
                   <th className="py-2 pr-4">期間</th>
                   <th className="py-2 pr-4">本薪</th>
                   <th className="py-2 pr-4">加班費</th>
+                  <th className="py-2 pr-4">夜間加給</th>
+                  <th className="py-2 pr-4">全勤獎金</th>
                   <th className="py-2 pr-4">應發合計</th>
                   <th className="py-2 pr-4">狀態</th>
                   <th className="py-2">操作</th>
@@ -308,6 +410,8 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
                     <td className="py-2 pr-4">{p.period}</td>
                     <td className="py-2 pr-4">{p.base}</td>
                     <td className="py-2 pr-4">{p.overtime_pay}</td>
+                    <td className="py-2 pr-4">{p.night_pay}</td>
+                    <td className="py-2 pr-4">{p.attendance_bonus}</td>
                     <td className="py-2 pr-4 font-medium">{p.gross}</td>
                     <td className="py-2 pr-4">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${p.status === "finalized" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
