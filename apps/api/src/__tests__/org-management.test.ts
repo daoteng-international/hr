@@ -139,10 +139,16 @@ describe("F1 departments CRUD — tenant A, HR admin", () => {
       .set("Authorization", `Bearer ${A.adminToken}`)
 
     expect(res.status).toBe(200)
-    const rows = res.body.departments as Array<{ id: string; tenant_id: string }>
+    const rows = res.body.departments as Array<{
+      id: string
+      tenant_id: string
+      code: string
+      manager_label: string | null
+    }>
     expect(Array.isArray(rows)).toBe(true)
     expect(rows.every((r) => r.tenant_id === A.tenantId)).toBe(true)
     expect(rows.some((r) => r.id === deptId)).toBe(true)
+    expect(rows.find((r) => r.id === deptId)?.code).toMatch(/^D-[A-F0-9]{8}$/)
     // B's department must not leak.
     expect(rows.some((r) => r.id === bDeptId)).toBe(false)
   })
@@ -398,7 +404,7 @@ describe("F1 公司組織圖 — GET /org-chart builds a nested tree", () => {
     const parent = await request(app)
       .post("/departments")
       .set("Authorization", `Bearer ${A.adminToken}`)
-      .send({ name: `Org Parent ${stamp}` })
+      .send({ name: `Org Parent ${stamp}`, managerEmpId: aEmployeeId })
     expect(parent.status).toBe(201)
     parentId = parent.body.id
 
@@ -416,9 +422,18 @@ describe("F1 公司組織圖 — GET /org-chart builds a nested tree", () => {
       .set("Authorization", `Bearer ${A.adminToken}`)
     expect(res.status).toBe(200)
 
-    const tree = res.body.tree as Array<{ id: string; children: { id: string }[] }>
+    const tree = res.body.tree as Array<{
+      id: string
+      code: string
+      managerEmpId: string | null
+      managerLabel: string | null
+      children: { id: string }[]
+    }>
     const parentNode = tree.find((n) => n.id === parentId)
     expect(parentNode).toBeTruthy()
+    expect(parentNode!.code).toMatch(/^D-[A-F0-9]{8}$/)
+    expect(parentNode!.managerEmpId).toBe(aEmployeeId)
+    expect(parentNode!.managerLabel).toContain("Alice")
     expect(parentNode!.children.some((c) => c.id === childId)).toBe(true)
     // The child is not also a root.
     expect(tree.some((n) => n.id === childId)).toBe(false)

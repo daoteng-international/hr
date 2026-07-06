@@ -8,7 +8,7 @@ function TreeNode({ node, depth }: { node: OrgNode; depth: number }) {
   return (
     <li>
       <div
-        className="flex items-center gap-2 py-1.5"
+        className="flex flex-wrap items-center gap-2 py-1.5"
         style={{ paddingLeft: `${depth * 20}px` }}
       >
         <span
@@ -16,7 +16,13 @@ function TreeNode({ node, depth }: { node: OrgNode; depth: number }) {
           className="inline-block h-2 w-2 rounded-full"
           style={{ background: "var(--brand)" }}
         />
+        <span className="font-mono text-xs text-gray-400">{node.code}</span>
         <span className="font-medium text-gray-800">{node.name}</span>
+        {node.managerLabel && (
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+            {node.managerLabel}
+          </span>
+        )}
       </div>
       {node.children.length > 0 && (
         <ul>

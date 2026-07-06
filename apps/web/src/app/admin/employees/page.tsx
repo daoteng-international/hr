@@ -144,6 +144,31 @@ export default function EmployeesPage() {
   const [profile, setProfile] = useState<ProfileAggregate | null>(null);
   const [profileValues, setProfileValues] = useState<Record<string, string>>({});
   const [profileTab, setProfileTab] = useState<"basic" | "contact">("basic");
+  const [showEduForm, setShowEduForm] = useState(false);
+  const [showCertForm, setShowCertForm] = useState(false);
+  const [showWorkForm, setShowWorkForm] = useState(false);
+  const [showJobForm, setShowJobForm] = useState(false);
+  const [eduDraft, setEduDraft] = useState({
+    school: "",
+    degree: "",
+    majorCategory: "",
+    major: "",
+    studyType: "日間部",
+    studyStatus: "畢業",
+    region: "",
+    startDate: "",
+    endDate: "",
+    isHighest: false,
+  });
+  const [certDraft, setCertDraft] = useState({ name: "", issuer: "", issuedDate: "", expiryDate: "" });
+  const [workDraft, setWorkDraft] = useState({ company: "", title: "", startDate: "", endDate: "", description: "" });
+  const [jobDraft, setJobDraft] = useState({
+    effectiveDate: "",
+    action: "資料調整",
+    deptId: "",
+    grade: "",
+    title: "",
+  });
 
   const deptNameMap = useMemo(() => new Map(depts.map((dept) => [dept.id, dept.name])), [depts]);
   const selectedEmployee = rows.find((employee) => employee.id === profileEmpId) ?? null;
@@ -251,62 +276,74 @@ export default function EmployeesPage() {
     await loadProfile(profileEmpId);
   }
 
-  async function quickAddEducation() {
+  async function submitEducation(event: FormEvent) {
+    event.preventDefault();
     if (!profileEmpId) return;
-    const school = window.prompt("學校？");
-    if (!school) return;
+    if (!eduDraft.school.trim()) return;
     await addEmployeeEducation(profileEmpId, {
-      school,
-      degree: window.prompt("學歷類別？") || undefined,
-      major: window.prompt("科系？") || undefined,
-      studyType: window.prompt("就學類別？") || undefined,
-      studyStatus: window.prompt("狀態？") || undefined,
-      region: window.prompt("地區？") || undefined,
+      school: eduDraft.school.trim(),
+      isHighest: eduDraft.isHighest,
+      majorCategory: eduDraft.majorCategory.trim() || undefined,
+      major: eduDraft.major.trim() || undefined,
+      degree: eduDraft.degree.trim() || undefined,
+      studyType: eduDraft.studyType.trim() || undefined,
+      studyStatus: eduDraft.studyStatus.trim() || undefined,
+      region: eduDraft.region.trim() || undefined,
+      startDate: eduDraft.startDate || undefined,
+      endDate: eduDraft.endDate || undefined,
     });
+    setEduDraft({ school: "", degree: "", majorCategory: "", major: "", studyType: "日間部", studyStatus: "畢業", region: "", startDate: "", endDate: "", isHighest: false });
+    setShowEduForm(false);
     await loadProfile(profileEmpId);
   }
 
-  async function quickAddCertification() {
+  async function submitCertification(event: FormEvent) {
+    event.preventDefault();
     if (!profileEmpId) return;
-    const name = window.prompt("證照名稱？");
-    if (!name) return;
+    if (!certDraft.name.trim()) return;
     await addEmployeeCertification(profileEmpId, {
-      name,
-      issuer: window.prompt("發證單位？") || undefined,
-      issuedDate: window.prompt("發證日期 YYYY-MM-DD？") || undefined,
-      expiryDate: window.prompt("到期日 YYYY-MM-DD？") || undefined,
+      name: certDraft.name.trim(),
+      issuer: certDraft.issuer.trim() || undefined,
+      issuedDate: certDraft.issuedDate || undefined,
+      expiryDate: certDraft.expiryDate || undefined,
     });
+    setCertDraft({ name: "", issuer: "", issuedDate: "", expiryDate: "" });
+    setShowCertForm(false);
     await loadProfile(profileEmpId);
   }
 
-  async function quickAddWorkHistory() {
+  async function submitWorkHistory(event: FormEvent) {
+    event.preventDefault();
     if (!profileEmpId) return;
-    const company = window.prompt("公司名稱？");
-    if (!company) return;
+    if (!workDraft.company.trim()) return;
     await addEmployeeWorkHistory(profileEmpId, {
-      company,
-      title: window.prompt("職稱？") || undefined,
-      startDate: window.prompt("開始日 YYYY-MM-DD？") || undefined,
-      endDate: window.prompt("結束日 YYYY-MM-DD？") || undefined,
-      description: window.prompt("說明？") || undefined,
+      company: workDraft.company.trim(),
+      title: workDraft.title.trim() || undefined,
+      startDate: workDraft.startDate || undefined,
+      endDate: workDraft.endDate || undefined,
+      description: workDraft.description.trim() || undefined,
     });
+    setWorkDraft({ company: "", title: "", startDate: "", endDate: "", description: "" });
+    setShowWorkForm(false);
     await loadProfile(profileEmpId);
   }
 
-  async function quickAddJobHistory() {
+  async function submitJobHistory(event: FormEvent) {
+    event.preventDefault();
     if (!profileEmpId) return;
-    const effectiveDate = window.prompt("生效日 YYYY-MM-DD？");
-    const action = window.prompt("異動類型？（新進/晉升/調部門/資料調整）");
-    if (!effectiveDate || !action) return;
-    const dept = depts.find((item) => item.id === profile?.basic.dept_id);
+    if (!jobDraft.effectiveDate || !jobDraft.action.trim()) return;
+    const selectedDeptId = jobDraft.deptId || profile?.basic.dept_id || "";
+    const dept = depts.find((item) => item.id === selectedDeptId);
     await addEmployeeJobHistory(profileEmpId, {
-      effectiveDate,
-      action,
+      effectiveDate: jobDraft.effectiveDate,
+      action: jobDraft.action.trim(),
       deptId: dept?.id ?? null,
       deptName: dept?.name ?? null,
-      grade: window.prompt("職等？") || null,
-      title: window.prompt("職稱？") || null,
+      grade: jobDraft.grade.trim() || null,
+      title: jobDraft.title.trim() || null,
     });
+    setJobDraft({ effectiveDate: "", action: "資料調整", deptId: "", grade: "", title: "" });
+    setShowJobForm(false);
     await loadProfile(profileEmpId);
   }
 
@@ -522,12 +559,42 @@ export default function EmployeesPage() {
                 <section>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-700">學歷</h3>
-                    <button onClick={() => void quickAddEducation()} className="text-sm font-medium" style={{ color: "var(--brand)" }}>＋ 新增</button>
+                    <button type="button" onClick={() => setShowEduForm((open) => !open)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      {showEduForm ? "收合" : "＋ 新增"}
+                    </button>
                   </div>
+                  {showEduForm && (
+                    <form onSubmit={submitEducation} className="mb-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <input className={inputCls} value={eduDraft.school} onChange={(event) => setEduDraft((draft) => ({ ...draft, school: event.target.value }))} placeholder="學校" />
+                        <input className={inputCls} value={eduDraft.degree} onChange={(event) => setEduDraft((draft) => ({ ...draft, degree: event.target.value }))} placeholder="學歷類別" />
+                        <input className={inputCls} value={eduDraft.majorCategory} onChange={(event) => setEduDraft((draft) => ({ ...draft, majorCategory: event.target.value }))} placeholder="科系類別" />
+                        <input className={inputCls} value={eduDraft.major} onChange={(event) => setEduDraft((draft) => ({ ...draft, major: event.target.value }))} placeholder="科系名稱" />
+                        <select className={inputCls} value={eduDraft.studyType} onChange={(event) => setEduDraft((draft) => ({ ...draft, studyType: event.target.value }))}>
+                          <option>日間部</option>
+                          <option>夜間部</option>
+                          <option>其他(進修部或在職專班)</option>
+                        </select>
+                        <select className={inputCls} value={eduDraft.studyStatus} onChange={(event) => setEduDraft((draft) => ({ ...draft, studyStatus: event.target.value }))}>
+                          <option>畢業</option>
+                          <option>就學中</option>
+                          <option>肄業</option>
+                        </select>
+                        <input type="date" className={inputCls} value={eduDraft.startDate} onChange={(event) => setEduDraft((draft) => ({ ...draft, startDate: event.target.value }))} />
+                        <input type="date" className={inputCls} value={eduDraft.endDate} onChange={(event) => setEduDraft((draft) => ({ ...draft, endDate: event.target.value }))} />
+                        <input className={inputCls} value={eduDraft.region} onChange={(event) => setEduDraft((draft) => ({ ...draft, region: event.target.value }))} placeholder="學校所在地區" />
+                        <label className="flex items-center gap-2 text-sm text-gray-600">
+                          <input type="checkbox" checked={eduDraft.isHighest} onChange={(event) => setEduDraft((draft) => ({ ...draft, isHighest: event.target.checked }))} />
+                          最高學歷
+                        </label>
+                      </div>
+                      <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>新增學歷</button>
+                    </form>
+                  )}
                   <ul className="divide-y divide-gray-100 text-sm">
                     {profile.educations.map((item) => (
                       <li key={item.id} className="flex justify-between gap-3 py-2">
-                        <span>{item.school}｜{item.degree ?? "—"}｜{item.major ?? "—"}</span>
+                        <span>{item.school}｜{item.degree ?? "—"}｜{item.major_category ?? "—"}｜{item.major ?? "—"}｜{item.study_type ?? "—"}｜{item.study_status ?? "—"}｜{item.start_date ?? "—"} → {item.end_date ?? "—"}｜{item.region ?? "—"}{item.is_highest ? "｜最高學歷" : ""}</span>
                         <button onClick={() => deleteEmployeeEducation(item.id).then(() => loadProfile(profileEmpId))} className="text-red-600">刪除</button>
                       </li>
                     ))}
@@ -537,12 +604,23 @@ export default function EmployeesPage() {
                 <section>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-700">證照</h3>
-                    <button onClick={() => void quickAddCertification()} className="text-sm font-medium" style={{ color: "var(--brand)" }}>＋ 新增</button>
+                    <button type="button" onClick={() => setShowCertForm((open) => !open)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      {showCertForm ? "收合" : "＋ 新增"}
+                    </button>
                   </div>
+                  {showCertForm && (
+                    <form onSubmit={submitCertification} className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
+                      <input className={inputCls} value={certDraft.name} onChange={(event) => setCertDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="證照名稱" />
+                      <input className={inputCls} value={certDraft.issuer} onChange={(event) => setCertDraft((draft) => ({ ...draft, issuer: event.target.value }))} placeholder="發證單位" />
+                      <input type="date" className={inputCls} value={certDraft.issuedDate} onChange={(event) => setCertDraft((draft) => ({ ...draft, issuedDate: event.target.value }))} />
+                      <input type="date" className={inputCls} value={certDraft.expiryDate} onChange={(event) => setCertDraft((draft) => ({ ...draft, expiryDate: event.target.value }))} />
+                      <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>新增證照</button>
+                    </form>
+                  )}
                   <ul className="divide-y divide-gray-100 text-sm">
                     {profile.certifications.map((item) => (
                       <li key={item.id} className="flex justify-between gap-3 py-2">
-                        <span>{item.name}｜{item.issuer ?? "—"}｜{item.issued_date ?? "—"}</span>
+                        <span>{item.name}｜{item.issuer ?? "—"}｜{item.issued_date ?? "—"} → {item.expiry_date ?? "—"}</span>
                         <button onClick={() => deleteEmployeeCertification(item.id).then(() => loadProfile(profileEmpId))} className="text-red-600">刪除</button>
                       </li>
                     ))}
@@ -552,8 +630,20 @@ export default function EmployeesPage() {
                 <section>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-700">工作經歷</h3>
-                    <button onClick={() => void quickAddWorkHistory()} className="text-sm font-medium" style={{ color: "var(--brand)" }}>＋ 新增</button>
+                    <button type="button" onClick={() => setShowWorkForm((open) => !open)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      {showWorkForm ? "收合" : "＋ 新增"}
+                    </button>
                   </div>
+                  {showWorkForm && (
+                    <form onSubmit={submitWorkHistory} className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
+                      <input className={inputCls} value={workDraft.company} onChange={(event) => setWorkDraft((draft) => ({ ...draft, company: event.target.value }))} placeholder="公司" />
+                      <input className={inputCls} value={workDraft.title} onChange={(event) => setWorkDraft((draft) => ({ ...draft, title: event.target.value }))} placeholder="職稱" />
+                      <input type="date" className={inputCls} value={workDraft.startDate} onChange={(event) => setWorkDraft((draft) => ({ ...draft, startDate: event.target.value }))} />
+                      <input type="date" className={inputCls} value={workDraft.endDate} onChange={(event) => setWorkDraft((draft) => ({ ...draft, endDate: event.target.value }))} />
+                      <textarea className={`${inputCls} sm:col-span-2`} rows={2} value={workDraft.description} onChange={(event) => setWorkDraft((draft) => ({ ...draft, description: event.target.value }))} placeholder="說明" />
+                      <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>新增經歷</button>
+                    </form>
+                  )}
                   <ul className="divide-y divide-gray-100 text-sm">
                     {profile.workHistory.map((item) => (
                       <li key={item.id} className="flex justify-between gap-3 py-2">
@@ -567,8 +657,28 @@ export default function EmployeesPage() {
                 <section>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-700">職務經歷</h3>
-                    <button onClick={() => void quickAddJobHistory()} className="text-sm font-medium" style={{ color: "var(--brand)" }}>＋ 新增</button>
+                    <button type="button" onClick={() => setShowJobForm((open) => !open)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      {showJobForm ? "收合" : "＋ 新增"}
+                    </button>
                   </div>
+                  {showJobForm && (
+                    <form onSubmit={submitJobHistory} className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-2">
+                      <input type="date" className={inputCls} value={jobDraft.effectiveDate} onChange={(event) => setJobDraft((draft) => ({ ...draft, effectiveDate: event.target.value }))} />
+                      <select className={inputCls} value={jobDraft.action} onChange={(event) => setJobDraft((draft) => ({ ...draft, action: event.target.value }))}>
+                        <option>新進</option>
+                        <option>晉升</option>
+                        <option>調部門</option>
+                        <option>資料調整</option>
+                      </select>
+                      <select className={inputCls} value={jobDraft.deptId} onChange={(event) => setJobDraft((draft) => ({ ...draft, deptId: event.target.value }))}>
+                        <option value="">沿用目前直屬單位</option>
+                        {depts.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                      </select>
+                      <input className={inputCls} value={jobDraft.grade} onChange={(event) => setJobDraft((draft) => ({ ...draft, grade: event.target.value }))} placeholder="職等" />
+                      <input className={inputCls} value={jobDraft.title} onChange={(event) => setJobDraft((draft) => ({ ...draft, title: event.target.value }))} placeholder="職稱" />
+                      <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>新增職務經歷</button>
+                    </form>
+                  )}
                   <ul className="divide-y divide-gray-100 text-sm">
                     {profile.jobHistory.map((item) => (
                       <li key={item.id} className="py-2">

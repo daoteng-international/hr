@@ -22,6 +22,15 @@ const updateSchema = z
   })
   .refine((b) => Object.keys(b).length > 0, { message: "no fields to update" })
 
+function departmentCode(id: string): string {
+  return `D-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`
+}
+
+function managerLabel(employee: { name?: string | null; emp_no?: string | null } | undefined): string | null {
+  if (!employee?.name) return null
+  return employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name
+}
+
 /**
  * All department routes are HR-admin-only and tenant-scoped. The tenant boundary
  * is the load-bearing guard: every query is forced to res.locals.tenantId (from
@@ -38,17 +47,43 @@ departmentsRouter.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     const tenantId = res.locals.tenantId as string
     try {
-      const { data, error } = await supabaseAdmin
+      const [deptRes, employeeRes] = await Promise.all([
+        supabaseAdmin
         .from("departments")
         .select("id, tenant_id, parent_id, name, manager_emp_id, created_at")
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: true })
+          .order("created_at", { ascending: true }),
+        supabaseAdmin
+          .from("employees")
+          .select("id, name, emp_no")
+          .eq("tenant_id", tenantId),
+      ])
 
-      if (error) {
-        next(new Error(`GET /departments: ${error.message}`))
+      if (deptRes.error) {
+        next(new Error(`GET /departments: ${deptRes.error.message}`))
         return
       }
-      res.status(200).json({ departments: data ?? [] })
+      if (employeeRes.error) {
+        next(new Error(`GET /departments employees: ${employeeRes.error.message}`))
+        return
+      }
+      const employees = new Map(
+        (employeeRes.data ?? []).map((employee) => [
+          employee.id as string,
+          { name: employee.name as string | null, emp_no: employee.emp_no as string | null },
+        ]),
+      )
+      const departments = (deptRes.data ?? []).map((department) => {
+        const manager = employees.get((department.manager_emp_id as string | null) ?? "")
+        return {
+          ...department,
+          code: departmentCode(department.id as string),
+          manager_name: manager?.name ?? null,
+          manager_emp_no: manager?.emp_no ?? null,
+          manager_label: managerLabel(manager),
+        }
+      })
+      res.status(200).json({ departments })
     } catch (err) {
       next(err)
     }
@@ -58,8 +93,12 @@ departmentsRouter.get(
 // A department node with its nested children, as returned by GET /org-chart.
 interface OrgNode {
   id: string
+  code: string
   name: string
   managerEmpId: string | null
+  managerName: string | null
+  managerEmpNo: string | null
+  managerLabel: string | null
   children: OrgNode[]
 }
 
@@ -79,26 +118,59 @@ departmentsRouter.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     const tenantId = res.locals.tenantId as string
     try {
-      const { data, error } = await supabaseAdmin
+      const [deptRes, employeeRes] = await Promise.all([
+        supabaseAdmin
         .from("departments")
         .select("id, parent_id, name, manager_emp_id")
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: true })
+          .order("created_at", { ascending: true }),
+        supabaseAdmin
+          .from("employees")
+          .select("id, name, emp_no")
+          .eq("tenant_id", tenantId),
+      ])
 
-      if (error) {
-        next(new Error(`GET /org-chart: ${error.message}`))
+      if (deptRes.error) {
+        next(new Error(`GET /org-chart: ${deptRes.error.message}`))
+        return
+      }
+      if (employeeRes.error) {
+        next(new Error(`GET /org-chart employees: ${employeeRes.error.message}`))
         return
       }
 
-      const rows = data ?? []
+      const rows = deptRes.data ?? []
+      const employees = new Map(
+        (employeeRes.data ?? []).map((employee) => [
+          employee.id as string,
+          { name: employee.name as string | null, emp_no: employee.emp_no as string | null },
+        ]),
+      )
+      const parentById = new Map(rows.map((r) => [r.id as string, (r.parent_id as string | null) ?? null]))
       const nodes = new Map<string, OrgNode>()
       for (const r of rows) {
+        const manager = employees.get((r.manager_emp_id as string | null) ?? "")
         nodes.set(r.id as string, {
           id: r.id as string,
+          code: departmentCode(r.id as string),
           name: r.name as string,
           managerEmpId: (r.manager_emp_id as string | null) ?? null,
+          managerName: manager?.name ?? null,
+          managerEmpNo: manager?.emp_no ?? null,
+          managerLabel: managerLabel(manager),
           children: [],
         })
+      }
+
+      function parentWouldCycle(id: string, parentId: string): boolean {
+        const seen = new Set<string>([id])
+        let next: string | null = parentId
+        while (next) {
+          if (seen.has(next)) return true
+          seen.add(next)
+          next = parentById.get(next) ?? null
+        }
+        return false
       }
 
       const roots: OrgNode[] = []
@@ -106,8 +178,8 @@ departmentsRouter.get(
         const node = nodes.get(r.id as string)!
         const parentId = r.parent_id as string | null
         const parent = parentId ? nodes.get(parentId) : undefined
-        // Self-parenting or a parent outside this tenant → treat as a root.
-        if (parent && parentId !== r.id) parent.children.push(node)
+        // Self-parenting, cross-tenant/missing parents, or longer cycles are roots.
+        if (parentId && parent && parentId !== r.id && !parentWouldCycle(r.id as string, parentId)) parent.children.push(node)
         else roots.push(node)
       }
 

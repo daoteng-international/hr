@@ -33,6 +33,33 @@ export default function DepartmentsPage() {
     return new Map(employees.map((employee) => [employee.id, employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name]));
   }, [employees]);
   const deptName = useMemo(() => new Map(rows.map((row) => [row.id, row.name])), [rows]);
+  const childIdsByParent = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of rows) {
+      if (!row.parent_id) continue;
+      const children = map.get(row.parent_id) ?? new Set<string>();
+      children.add(row.id);
+      map.set(row.parent_id, children);
+    }
+    return map;
+  }, [rows]);
+
+  function isDescendant(candidateParentId: string, departmentId: string) {
+    const stack = [...(childIdsByParent.get(departmentId) ?? [])];
+    const seen = new Set<string>();
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (id === candidateParentId) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      stack.push(...(childIdsByParent.get(id) ?? []));
+    }
+    return false;
+  }
+
+  function managerDisplay(department: Department) {
+    return department.manager_label ?? (department.manager_emp_id ? employeeName.get(department.manager_emp_id) : null) ?? "—";
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,7 +144,7 @@ export default function DepartmentsPage() {
             <label className={labelCls}>上層單位</label>
             <select className={inputCls} value={parentId} onChange={(event) => setParentId(event.target.value)}>
               <option value="">根節點</option>
-              {rows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+              {rows.map((row) => <option key={row.id} value={row.id}>{row.code} · {row.name}</option>)}
             </select>
           </div>
           <div>
@@ -146,6 +173,7 @@ export default function DepartmentsPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-500">
+                  <th className="py-2 pr-4">單位代碼</th>
                   <th className="py-2 pr-4">單位名稱</th>
                   <th className="py-2 pr-4">上層單位</th>
                   <th className="py-2 pr-4">主管</th>
@@ -156,12 +184,15 @@ export default function DepartmentsPage() {
                 {rows.map((department) => (
                   <tr key={department.id} className="border-b border-gray-50">
                     {editingId === department.id ? (
-                      <td colSpan={4} className="py-3">
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                      <td colSpan={5} className="py-3">
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+                          <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-medium text-gray-500">{department.code}</div>
                           <input className={inputCls} value={editName} onChange={(event) => setEditName(event.target.value)} />
                           <select className={inputCls} value={editParentId} onChange={(event) => setEditParentId(event.target.value)}>
                             <option value="">根節點</option>
-                            {rows.filter((row) => row.id !== department.id).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+                            {rows
+                              .filter((row) => row.id !== department.id && !isDescendant(row.id, department.id))
+                              .map((row) => <option key={row.id} value={row.id}>{row.code} · {row.name}</option>)}
                           </select>
                           <select className={inputCls} value={editManagerEmpId} onChange={(event) => setEditManagerEmpId(event.target.value)}>
                             <option value="">未指定</option>
@@ -175,9 +206,10 @@ export default function DepartmentsPage() {
                       </td>
                     ) : (
                       <>
+                        <td className="py-3 pr-4 font-mono text-xs text-gray-500">{department.code}</td>
                         <td className="py-3 pr-4 font-medium text-gray-800">{department.name}</td>
                         <td className="py-3 pr-4 text-gray-600">{department.parent_id ? deptName.get(department.parent_id) : "根節點"}</td>
-                        <td className="py-3 pr-4 text-gray-600">{department.manager_emp_id ? employeeName.get(department.manager_emp_id) : "—"}</td>
+                        <td className="py-3 pr-4 text-gray-600">{managerDisplay(department)}</td>
                         <td className="py-3">
                           <div className="flex gap-3">
                             <button

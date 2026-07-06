@@ -34,8 +34,12 @@ export interface Department {
   id: string;
   tenant_id: string;
   parent_id: string | null;
+  code: string;
   name: string;
   manager_emp_id: string | null;
+  manager_name: string | null;
+  manager_emp_no: string | null;
+  manager_label: string | null;
   created_at: string;
 }
 
@@ -625,8 +629,12 @@ export function deleteLeaveType(id: string) {
 
 export interface OrgNode {
   id: string;
+  code: string;
   name: string;
   managerEmpId: string | null;
+  managerName: string | null;
+  managerEmpNo: string | null;
+  managerLabel: string | null;
   children: OrgNode[];
 }
 
