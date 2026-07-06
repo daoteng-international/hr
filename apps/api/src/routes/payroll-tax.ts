@@ -25,6 +25,7 @@ function hrCrud<C extends z.ZodTypeAny, U extends z.ZodTypeAny>(opts: {
   toRow: (d: z.infer<C>) => Record<string, unknown>
   toPatch: (d: z.infer<U>) => Record<string, unknown>
   listFilters?: Record<string, string>
+  mapListRow?: (row: Record<string, unknown>) => Record<string, unknown>
 }) {
   const { segment, table, cols, create, update, toRow, toPatch } = opts
   payrollTaxRouter.get(`/${segment}`, requireAuth, requireTenant, requireHrAdmin, async (req, res, next) => {
@@ -37,7 +38,10 @@ function hrCrud<C extends z.ZodTypeAny, U extends z.ZodTypeAny>(opts: {
       }
       const { data, error } = await q.order("created_at", { ascending: false })
       if (error) return next(new Error(`GET /${segment}: ${error.message}`))
-      res.status(200).json({ [segment]: data ?? [] })
+      const rows = opts.mapListRow
+        ? (data ?? []).map((row) => opts.mapListRow?.(row as unknown as Record<string, unknown>) ?? row)
+        : (data ?? [])
+      res.status(200).json({ [segment]: rows })
     } catch (err) {
       next(err)
     }
@@ -166,6 +170,7 @@ hrCrud({
     if (d.birthYear !== undefined) p.birth_year = d.birthYear
     return p
   },
+  mapListRow: (row) => ({ ...row, support_status: "claimed" }),
 })
 
 /* ---- 批次調薪 salary-adjustments ---- */

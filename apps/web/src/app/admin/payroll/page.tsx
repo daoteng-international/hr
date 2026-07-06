@@ -237,6 +237,7 @@ export default function PayrollAdminPage() {
     return employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name;
   };
   const selectedIdentity = empId ? employeeIdentityById[empId] : "";
+  const taxStatusLabel = (status: TaxDependent["support_status"]) => (status === "claimed" ? "扶養中" : status);
 
   async function finalizeAll() {
     const drafts = payslips.filter((payslip) => payslip.status !== "finalized");
@@ -388,10 +389,10 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
                       <span>
                         {d.name}
                         <span className="text-xs text-gray-500">
-                          {" "}｜{d.relationship ?? "—"}｜{d.id_number ?? "無證號"}｜出生年 {d.birth_year ?? "—"}
+                          {" "}｜{d.relationship ?? "—"}｜{d.id_number ?? "無證號"}｜出生年 {d.birth_year ?? "—"}｜{taxStatusLabel(d.support_status)}
                         </span>
                       </span>
-                      <button onClick={() => deleteTaxDependent(d.id).then(() => loadEmployee(empId))} className="text-red-600 hover:underline">刪除</button>
+                      <button onClick={() => deleteTaxDependent(d.id).then(() => loadEmployee(empId))} className="text-red-600 hover:underline">停用扶養</button>
                     </li>
                   ))}
                   {taxDeps.length === 0 && <li className="py-1.5 text-gray-400">無</li>}

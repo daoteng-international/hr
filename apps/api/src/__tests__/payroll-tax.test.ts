@@ -110,6 +110,11 @@ describe("F-Tax 資料表 CRUD", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ employeeId: empId, name: "子女", relationship: "child", birthYear: 2015 })
     expect(res.status).toBe(201)
+    const list = await request(app)
+      .get(`/income-tax-dependents?employeeId=${empId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+    expect(list.status).toBe(200)
+    expect(list.body["income-tax-dependents"][0].support_status).toBe("claimed")
   })
 
   it("批次調薪 import: 2 rows, 1 bad → count 1, errors 1", async () => {

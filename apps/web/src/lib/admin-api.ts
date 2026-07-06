@@ -1123,6 +1123,7 @@ export interface TaxDependent {
   relationship: string | null;
   id_number: string | null;
   birth_year: number | null;
+  support_status: "claimed";
 }
 
 export function getTaxDependents(employeeId: string) {
