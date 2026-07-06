@@ -17,7 +17,16 @@ export function EssHeader({
 }: {
   appName?: string;
   primaryColor?: string;
-  active: "home" | "requests" | "mydata" | "punches" | "balances" | "schedule" | "payslips" | "jobs";
+  active:
+    | "home"
+    | "requests"
+    | "notifications"
+    | "mydata"
+    | "punches"
+    | "balances"
+    | "schedule"
+    | "payslips"
+    | "jobs";
   /** When the signed-in user is an HR/platform admin, show a link to /admin. */
   isAdmin?: boolean;
 }) {
@@ -32,7 +41,20 @@ export function EssHeader({
     ? ({ ["--brand" as string]: primaryColor } as React.CSSProperties)
     : undefined;
 
-  const tab = (key: "home" | "requests" | "mydata" | "punches" | "balances" | "schedule" | "payslips" | "jobs", label: string, href: string) => (
+  const tab = (
+    key:
+      | "home"
+      | "requests"
+      | "notifications"
+      | "mydata"
+      | "punches"
+      | "balances"
+      | "schedule"
+      | "payslips"
+      | "jobs",
+    label: string,
+    href: string,
+  ) => (
     <button
       onClick={() => router.push(href)}
       className={`text-sm font-medium px-3 py-1.5 rounded-md ${
@@ -56,6 +78,7 @@ export function EssHeader({
         <nav className="flex items-center gap-1">
           {tab("home", "今日打卡", "/ess")}
           {tab("requests", "我的申請", "/ess/requests")}
+          {tab("notifications", "通知中心", "/ess/notifications")}
           {tab("schedule", "個人班表", "/ess/schedule")}
           {tab("punches", "打卡紀錄", "/ess/punches")}
           {tab("balances", "剩餘假別", "/ess/balances")}
