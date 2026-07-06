@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, PageHeader, ErrorText, Empty, PrimaryButton, inputCls, labelCls } from "@/components/admin-ui";
 import {
   batchDecideRequests,
+  changeRequestApprover,
   deleteRequest,
   getApprovalFlows,
   getDepartments,
@@ -91,6 +92,7 @@ export default function FormRecordsPage() {
   const [to, setTo] = useState("");
   const [keyword, setKeyword] = useState("");
   const [adminComment, setAdminComment] = useState("");
+  const [approverDrafts, setApproverDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -141,10 +143,18 @@ export default function FormRecordsPage() {
     [employees],
   );
 
+  const approverCandidates = useMemo(
+    () => employees.filter((employee) => employee.status === "active"),
+    [employees],
+  );
+
   const currentApproverLabel = useCallback(
     (record: LeaveRequest) => {
       if (record.status !== "pending") return "—";
-      const approverId = approvalFlowByKind.get(record.kind)?.[record.current_step - 1] ?? fallbackHrApprover?.id;
+      const approverId =
+        record.current_approver_emp_id ??
+        approvalFlowByKind.get(record.kind)?.[record.current_step - 1] ??
+        fallbackHrApprover?.id;
       const label = approverId ? employeeName.get(approverId) : undefined;
       return label ? `第 ${record.current_step} 關 · ${label}` : `第 ${record.current_step} 關 · 依後端簽核鏈`;
     },
@@ -249,9 +259,33 @@ export default function FormRecordsPage() {
     }
   }
 
-  function showChangeApproverNotice() {
+  async function changeApprover(record: LeaveRequest) {
+    const approverEmpId = approverDrafts[record.id] ?? record.current_approver_emp_id ?? "";
+    if (!approverEmpId) {
+      setError("請先選擇新的簽核人");
+      return;
+    }
+    if (approverEmpId === record.current_approver_emp_id) {
+      setMessage("目前簽核人未變更");
+      return;
+    }
+    setBusyId(record.id);
     setError(null);
-    setMessage("變更簽核人目前尚未有後端 API；未變更任何資料。請先至「假別與簽核流程」調整後續新表單流程。");
+    setMessage(null);
+    try {
+      await changeRequestApprover(record.id, approverEmpId, adminComment || undefined);
+      setMessage("已變更目前簽核人並送出通知");
+      setApproverDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[record.id];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "變更簽核人失敗");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function remove(id: string) {
@@ -447,12 +481,28 @@ export default function FormRecordsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={showChangeApproverNotice}
-                          className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-medium text-blue-700"
-                          title="後端尚未提供變更既有表單簽核人的 API"
+                          onClick={() => void changeApprover(record)}
+                          disabled={busyId === record.id || record.status !== "pending"}
+                          className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-medium text-blue-700 disabled:opacity-50"
                         >
                           變更簽核人
                         </button>
+                        {record.status === "pending" && (
+                          <select
+                            className="rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+                            value={approverDrafts[record.id] ?? record.current_approver_emp_id ?? ""}
+                            onChange={(event) =>
+                              setApproverDrafts((drafts) => ({ ...drafts, [record.id]: event.target.value }))
+                            }
+                          >
+                            <option value="">選擇簽核人</option>
+                            {approverCandidates.map((employee) => (
+                              <option key={employee.id} value={employee.id}>
+                                {employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <button
                           type="button"
                           onClick={() => void remove(record.id)}

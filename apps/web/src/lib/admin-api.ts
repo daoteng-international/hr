@@ -547,6 +547,7 @@ export interface LeaveRequest {
   segments: unknown;
   status: RequestStatus;
   current_step: number;
+  current_approver_emp_id: string | null;
   created_at: string;
 }
 
@@ -607,6 +608,18 @@ export function remindRequest(id: string) {
   return apiFetch<{ notified: number; employeeId: string }>(`/requests/${id}/remind`, {
     method: "POST",
     body: JSON.stringify({}),
+  });
+}
+
+export function changeRequestApprover(id: string, approverEmpId: string, comment?: string) {
+  return apiFetch<{
+    id: string;
+    currentStep: number;
+    previousApproverEmpId: string;
+    approverEmpId: string;
+  }>(`/requests/${id}/change-approver`, {
+    method: "POST",
+    body: JSON.stringify({ approverEmpId, ...(comment ? { comment } : {}) }),
   });
 }
 

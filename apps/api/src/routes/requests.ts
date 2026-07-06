@@ -61,6 +61,11 @@ const batchDecisionSchema = z.object({
   comment: z.string().trim().min(1).optional(),
 })
 
+const changeApproverSchema = z.object({
+  approverEmpId: z.string().uuid(),
+  comment: z.string().trim().max(250).optional(),
+})
+
 const REQUEST_COLS =
   "id, tenant_id, employee_id, kind, leave_type_id, start_at, end_at, hours, reason, agent_name, payout, trip_type, location, remark, segments, status, current_step, created_at"
 
@@ -83,6 +88,28 @@ async function resolveSelf(
 
 function isHrRole(role: string | undefined): boolean {
   return !!role && ["hr_admin", "platform_admin"].includes(role)
+}
+
+async function withCurrentApprovers<T extends { id: string; current_step: number }>(
+  tenantId: string,
+  rows: T[],
+): Promise<Array<T & { current_approver_emp_id: string | null }>> {
+  if (rows.length === 0) return []
+  const requestIds = rows.map((row) => row.id)
+  const { data, error } = await supabaseAdmin
+    .from("approval_steps")
+    .select("request_id, step_order, approver_emp_id")
+    .eq("tenant_id", tenantId)
+    .in("request_id", requestIds)
+  if (error) throw new Error(`GET /requests (current approvers): ${error.message}`)
+  const approverByRequestStep = new Map<string, string>()
+  for (const step of data ?? []) {
+    approverByRequestStep.set(`${step.request_id}:${step.step_order}`, step.approver_emp_id as string)
+  }
+  return rows.map((row) => ({
+    ...row,
+    current_approver_emp_id: approverByRequestStep.get(`${row.id}:${row.current_step}`) ?? null,
+  }))
 }
 
 /**
@@ -311,7 +338,7 @@ requestsRouter.get(
           next(new Error(`GET /requests (hr): ${error.message}`))
           return
         }
-        res.status(200).json({ requests: data ?? [] })
+        res.status(200).json({ requests: await withCurrentApprovers(tenantId, data ?? []) })
         return
       }
 
@@ -365,7 +392,7 @@ requestsRouter.get(
         return !!myStepOrders && myStepOrders.has(r.current_step as number)
       })
 
-      res.status(200).json({ requests: visible })
+      res.status(200).json({ requests: await withCurrentApprovers(tenantId, visible) })
     } catch (err) {
       next(err)
     }
@@ -711,6 +738,128 @@ requestsRouter.post(
         ok: results.filter((result) => result.ok).length,
         failed: results.filter((result) => !result.ok).length,
         results,
+      })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * POST /requests/:id/change-approver — HR changes the approver of the current
+ * pending step. This does not rewrite completed steps or global approval flows;
+ * it only reassigns the live step for this one form record.
+ */
+requestsRouter.post(
+  "/requests/:id/change-approver",
+  requireAuth,
+  requireTenant,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const userId = req.auth?.userId
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" })
+      return
+    }
+    const requestId = req.params.id
+    const parsed = changeApproverSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    try {
+      const self = await resolveSelf(tenantId, userId)
+      if (!isHrRole(self?.role)) {
+        res.status(403).json({ error: "hr_admin_required" })
+        return
+      }
+
+      const { data: lr, error: lrErr } = await supabaseAdmin
+        .from("leave_requests")
+        .select("id, kind, status, current_step")
+        .eq("tenant_id", tenantId)
+        .eq("id", requestId)
+        .maybeSingle()
+      if (lrErr) {
+        next(new Error(`POST /requests/${requestId}/change-approver (request): ${lrErr.message}`))
+        return
+      }
+      if (!lr) {
+        res.status(404).json({ error: "not_found" })
+        return
+      }
+      if (lr.status !== "pending") {
+        res.status(409).json({ error: "not_pending" })
+        return
+      }
+
+      const { data: target, error: targetErr } = await supabaseAdmin
+        .from("employees")
+        .select("id, status")
+        .eq("tenant_id", tenantId)
+        .eq("id", parsed.data.approverEmpId)
+        .maybeSingle()
+      if (targetErr) {
+        next(new Error(`POST /requests/${requestId}/change-approver (target): ${targetErr.message}`))
+        return
+      }
+      if (!target || target.status !== "active") {
+        res.status(404).json({ error: "approver_not_found_or_inactive" })
+        return
+      }
+
+      const { data: step, error: stepErr } = await supabaseAdmin
+        .from("approval_steps")
+        .select("id, approver_emp_id, step_order")
+        .eq("tenant_id", tenantId)
+        .eq("request_id", requestId)
+        .eq("step_order", lr.current_step)
+        .maybeSingle()
+      if (stepErr) {
+        next(new Error(`POST /requests/${requestId}/change-approver (step): ${stepErr.message}`))
+        return
+      }
+      if (!step) {
+        res.status(409).json({ error: "current_step_not_found" })
+        return
+      }
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("approval_steps")
+        .update({
+          approver_emp_id: parsed.data.approverEmpId,
+          comment: parsed.data.comment ?? null,
+        })
+        .eq("tenant_id", tenantId)
+        .eq("id", step.id)
+      if (updateErr) {
+        next(new Error(`POST /requests/${requestId}/change-approver (update): ${updateErr.message}`))
+        return
+      }
+
+      await supabaseAdmin.from("notifications").insert({
+        tenant_id: tenantId,
+        employee_id: parsed.data.approverEmpId,
+        type: "approval",
+        title: "表單簽核人已變更",
+        body: `有一張 ${lr.kind} 表單已指派給你進行第 ${lr.current_step} 關簽核。`,
+        channel: "inapp",
+        status: "pending",
+        payload: {
+          requestId,
+          requestKind: lr.kind,
+          currentStep: lr.current_step,
+          changedBy: self?.id,
+          previousApproverEmpId: step.approver_emp_id,
+        },
+      })
+
+      res.status(200).json({
+        id: requestId,
+        currentStep: lr.current_step,
+        previousApproverEmpId: step.approver_emp_id,
+        approverEmpId: parsed.data.approverEmpId,
       })
     } catch (err) {
       next(err)
