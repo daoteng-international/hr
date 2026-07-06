@@ -29,7 +29,7 @@ P3 把已落地的差勤/薪資/請假/組織資料變成「可決策的彙整�
     PATCH 評分（評核者或 HR；用 template.items 的 weight 算 `total_score = Σ(score/maxScore × weight)`，四捨五入 2 位；finalized→409）；
     submit（評核者 draft→submitted）；finalize（HR submitted→finalized 終態）。皆 `.eq("tenant_id", …)` 為承重防線。
   - `apps/api/src/app.ts` 掛載 kpiTemplatesRouter、kpiReviewsRouter。
-- [ ] **F3 報表前端頁**：將 F1 各報表接成 HR 後台頁面（篩選 + 表格 + 下載 CSV）。
+- [x] **F3 報表前端頁**：將 F1 各報表接成 HR 後台頁面（篩選 + 表格 + 下載 CSV）。
 
 ## 進度日誌
 （每完成一個功能在此追加一行：日期 / 功能 / commit / 測試結果）
@@ -62,3 +62,7 @@ P3 把已落地的差勤/薪資/請假/組織資料變成「可決策的彙整�
   draft→submitted（評核者）→finalized（HR）。
   可見性：評核者看得到被指派的；受評者 finalize 前看不到、finalize 後看得到自己；無關第三人（emp2）看不到；A 的 HR 看不到 B。
   Supabase 測試資料 afterAll 依 FK 安全序清乾淨（kpi_reviews→kpi_templates→employees→tenants→auth users，0 殘留）。
+- 2026-07-06 / F3 報表前端頁 / `apps/web/src/app/admin/reports/page.tsx` 接上
+  `GET /reports/attendance`、`/reports/leave`、`/reports/payroll`、`/reports/headcount` JSON 預覽：
+  查詢條件（日期區間、薪資年月、出勤單位）、摘要卡、出勤/表單/薪資/人力表格、表單明細預覽，以及單項/批次 CSV 下載。
+  `apps/web/src/lib/admin-api.ts` 新增 typed report client，讓前端不只下載 CSV，也能呈現 Apollo 報表中心所需欄位。

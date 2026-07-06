@@ -1528,6 +1528,73 @@ export interface HeadcountReport {
   byDept: { deptId: string | null; count: number }[];
 }
 
+export interface AttendanceReportRow {
+  employeeId: string;
+  employeeName: string;
+  workedMinutes: number;
+  lateDays: number;
+  lateMinutes: number;
+  overtimeMinutes: number;
+  nightMinutes: number;
+  presentDays: number;
+}
+
+export interface AttendanceReport {
+  rows: AttendanceReportRow[];
+}
+
+export interface PayrollReportRow {
+  employeeId: string;
+  employeeName: string;
+  base: number;
+  overtimePay: number;
+  nightPay: number;
+  attendanceBonus: number;
+  gross: number;
+}
+
+export interface PayrollReport {
+  rows: PayrollReportRow[];
+  total: { gross: number };
+}
+
+export interface LeaveReportSummaryRow {
+  kind: string;
+  status: string;
+  count: number;
+  hours: number;
+}
+
+export interface LeaveReportDetailRow {
+  employeeId: string;
+  employeeName: string;
+  kind: string;
+  status: string;
+  hours: number;
+  startAt: string;
+  endAt: string;
+}
+
+export interface LeaveReport {
+  rows: LeaveReportSummaryRow[];
+  details: LeaveReportDetailRow[];
+}
+
 export function getHeadcountReport() {
   return apiFetch<HeadcountReport>("/reports/headcount");
+}
+
+export function getAttendanceReport(params: { from: string; to: string; deptId?: string }) {
+  const qs = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.deptId) qs.set("deptId", params.deptId);
+  return apiFetch<AttendanceReport>(`/reports/attendance?${qs.toString()}`);
+}
+
+export function getPayrollReport(period: string) {
+  return apiFetch<PayrollReport>(`/reports/payroll?period=${encodeURIComponent(period)}`);
+}
+
+export function getLeaveReport(params: { from: string; to: string }) {
+  const qs = new URLSearchParams({ from: params.from, to: params.to });
+  return apiFetch<LeaveReport>(`/reports/leave?${qs.toString()}`);
 }
