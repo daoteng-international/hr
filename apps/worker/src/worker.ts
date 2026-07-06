@@ -19,13 +19,13 @@ const logger = pino({
 let attendanceWorker: Worker | null = null;
 
 /**
- * Register the placeholder daily attendance settlement scheduler.
+ * Register the daily attendance settlement scheduler.
  *
  * Only called when REDIS_URL is present (and therefore attendanceQueue exists).
  * Registers a cron via upsertJobScheduler — idempotent, so re-deploys don't
- * pile up duplicate schedulers — and a matching no-op Worker that just logs.
- * The real settlement logic (apply RuleConfig, compute bonuses/overtime) lands
- * in a later task.
+ * pile up duplicate schedulers — and calls the API's protected internal settle
+ * endpoint. The API owns tenant-scoped DB access and the @hr/rules settlement
+ * implementation; the worker is just the clock.
  */
 async function registerSchedulers() {
   if (!attendanceQueue || !maybeRedis) return;
@@ -39,8 +39,37 @@ async function registerSchedulers() {
   attendanceWorker = new Worker(
     "attendance",
     async (job) => {
-      // TODO: settle attendance — load tenant RuleConfig, compute全勤獎金/加班/夜間
-      logger.info({ jobId: job.id, name: job.name }, "daily-attendance-settle (no-op placeholder)");
+      const apiUrl = process.env.API_INTERNAL_URL ?? process.env.API_URL;
+      const token = process.env.INTERNAL_JOB_TOKEN;
+      if (!apiUrl || !token) {
+        logger.warn(
+          { jobId: job.id, name: job.name, hasApiUrl: !!apiUrl, hasToken: !!token },
+          "daily-attendance-settle skipped: API_INTERNAL_URL/API_URL or INTERNAL_JOB_TOKEN missing",
+        );
+        return;
+      }
+
+      const baseUrl = apiUrl.replace(/\/$/, "");
+      const body = typeof job.data?.date === "string" ? { date: job.data.date } : {};
+      const response = await fetch(`${baseUrl}/internal/attendance/daily-settle`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-job-token": token,
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await response.text();
+      let payload: unknown = text;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        /* keep text payload */
+      }
+      if (!response.ok) {
+        throw new Error(`daily settle API failed ${response.status}: ${text.slice(0, 500)}`);
+      }
+      logger.info({ jobId: job.id, name: job.name, result: payload }, "daily-attendance-settle completed");
     },
     { connection: maybeRedis },
   );

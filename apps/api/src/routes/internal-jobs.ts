@@ -1,0 +1,91 @@
+import { Router, type Request, type Response, type NextFunction } from "express"
+import { z } from "zod"
+import { supabaseAdmin } from "../lib/supabase.js"
+import { settleAttendance } from "../services/settlement.js"
+
+export const internalJobsRouter = Router()
+
+const dateRe = /^\d{4}-\d{2}-\d{2}$/
+
+const dailySettleSchema = z.object({
+  date: z.string().regex(dateRe).optional(),
+})
+
+type DailySettleResult =
+  | { tenantId: string; ok: true; settled: number }
+  | { tenantId: string; ok: false; error: string }
+
+function requireInternalToken(req: Request, res: Response): boolean {
+  const expected = process.env.INTERNAL_JOB_TOKEN
+  if (!expected) {
+    res.status(404).json({ error: "not_found" })
+    return false
+  }
+  const token = req.header("x-internal-job-token") ?? req.header("authorization")?.replace(/^Bearer\s+/i, "")
+  if (token !== expected) {
+    res.status(401).json({ error: "unauthorized" })
+    return false
+  }
+  return true
+}
+
+function taipeiDateDaysAgo(daysAgo: number): string {
+  const date = new Date(Date.now() - daysAgo * 86_400_000)
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)
+  const byType = new Map(parts.map((part) => [part.type, part.value]))
+  return `${byType.get("year")}-${byType.get("month")}-${byType.get("day")}`
+}
+
+internalJobsRouter.post(
+  "/internal/attendance/daily-settle",
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!requireInternalToken(req, res)) return
+    const parsed = dailySettleSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    const date = parsed.data.date ?? taipeiDateDaysAgo(1)
+    try {
+      const { data: tenants, error } = await supabaseAdmin
+        .from("tenants")
+        .select("id")
+        .eq("status", "active")
+      if (error) {
+        next(new Error(`POST /internal/attendance/daily-settle (tenants): ${error.message}`))
+        return
+      }
+
+      const results: DailySettleResult[] = []
+      for (const tenant of tenants ?? []) {
+        const tenantId = tenant.id as string
+        try {
+          const result = await settleAttendance({ tenantId, from: date, to: date })
+          results.push({ tenantId, ok: true, settled: result.settled })
+        } catch (err) {
+          results.push({
+            tenantId,
+            ok: false,
+            error: err instanceof Error ? err.message : "settlement_failed",
+          })
+        }
+      }
+
+      res.status(200).json({
+        date,
+        tenants: results.length,
+        settled: results.reduce((sum, item) => sum + (item.ok ? item.settled : 0), 0),
+        failed: results.filter((item) => !item.ok).length,
+        results,
+      })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
