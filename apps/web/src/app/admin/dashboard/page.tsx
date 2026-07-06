@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, PageHeader, Empty, ErrorText, PrimaryButton } from "@/components/admin-ui";
 import {
   getHeadcount,
   getDepartments,
+  getPreference,
+  savePreference,
   type HeadcountMonth,
   type Department,
 } from "@/lib/admin-api";
@@ -13,8 +15,10 @@ const inputCls =
   "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none";
 const labelCls = "mb-1 block text-xs font-medium text-gray-500";
 const STORAGE_KEY = "hr.admin.dashboard.widgets.v1";
+const PREFERENCE_KEY = "admin.dashboard.widgets.v1";
 
 type WidgetId = "summary" | "trend" | "movement" | "filters";
+type DashboardWidget = { id: WidgetId; visible: boolean };
 
 const WIDGET_META: Record<WidgetId, { title: string; desc: string }> = {
   summary: { title: "關鍵指標", desc: "期初、新進、離職與期末在職" },
@@ -23,7 +27,7 @@ const WIDGET_META: Record<WidgetId, { title: string; desc: string }> = {
   filters: { title: "目前篩選條件", desc: "快速檢視 Dashboard 查詢條件" },
 };
 
-const DEFAULT_WIDGETS: Array<{ id: WidgetId; visible: boolean }> = [
+const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "summary", visible: true },
   { id: "trend", visible: true },
   { id: "movement", visible: true },
@@ -34,16 +38,27 @@ function ym(date: Date): string {
   return date.toISOString().slice(0, 7);
 }
 
-function loadStoredWidgets(): Array<{ id: WidgetId; visible: boolean }> {
+function normalizeWidgets(value: unknown): DashboardWidget[] {
+  try {
+    const parsed = value as DashboardWidget[];
+    if (!Array.isArray(parsed)) return DEFAULT_WIDGETS;
+    const validIds = new Set<WidgetId>(["summary", "trend", "movement", "filters"]);
+    const normalized = parsed.filter(
+      (item): item is DashboardWidget =>
+        !!item && validIds.has(item.id) && typeof item.visible === "boolean",
+    );
+    const missing = DEFAULT_WIDGETS.filter((item) => !normalized.some((stored) => stored.id === item.id));
+    return normalized.length ? [...normalized, ...missing] : DEFAULT_WIDGETS;
+  } catch {
+    return DEFAULT_WIDGETS;
+  }
+}
+
+function loadStoredWidgets(): DashboardWidget[] {
   if (typeof window === "undefined") return DEFAULT_WIDGETS;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_WIDGETS;
-    const parsed = JSON.parse(raw) as Array<{ id: WidgetId; visible: boolean }>;
-    const validIds = new Set<WidgetId>(["summary", "trend", "movement", "filters"]);
-    const normalized = parsed.filter((item) => validIds.has(item.id));
-    const missing = DEFAULT_WIDGETS.filter((item) => !normalized.some((stored) => stored.id === item.id));
-    return normalized.length ? [...normalized, ...missing] : DEFAULT_WIDGETS;
+    return raw ? normalizeWidgets(JSON.parse(raw)) : DEFAULT_WIDGETS;
   } catch {
     return DEFAULT_WIDGETS;
   }
@@ -61,15 +76,55 @@ export default function DashboardPage() {
   const [totals, setTotals] = useState<{ opening: number; hires: number; exits: number; closing: number } | null>(null);
   const [widgets, setWidgets] = useState(DEFAULT_WIDGETS);
   const [customizing, setCustomizing] = useState(false);
+  const [preferenceStatus, setPreferenceStatus] = useState<"loading" | "saved" | "saving" | "local">("loading");
   const [error, setError] = useState<string | null>(null);
+  const preferenceSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setWidgets(loadStoredWidgets());
+    let active = true;
+    const localWidgets = loadStoredWidgets();
+    setWidgets(localWidgets);
+    getPreference<DashboardWidget[]>(PREFERENCE_KEY)
+      .then((res) => {
+        if (!active) return;
+        if (res.preference.value) {
+          const cloudWidgets = normalizeWidgets(res.preference.value);
+          setWidgets(cloudWidgets);
+          try {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudWidgets));
+          } catch {
+            /* private mode */
+          }
+        }
+        setPreferenceStatus("saved");
+      })
+      .catch(() => {
+        if (active) setPreferenceStatus("local");
+      });
+    return () => {
+      active = false;
+      if (preferenceSaveTimer.current) clearTimeout(preferenceSaveTimer.current);
+    };
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets));
-  }, [widgets]);
+  function persistWidgets(next: DashboardWidget[]) {
+    setWidgets(next);
+    setPreferenceStatus("saving");
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    if (preferenceSaveTimer.current) clearTimeout(preferenceSaveTimer.current);
+    preferenceSaveTimer.current = setTimeout(async () => {
+      try {
+        await savePreference(PREFERENCE_KEY, next);
+        setPreferenceStatus("saved");
+      } catch {
+        setPreferenceStatus("local");
+      }
+    }, 600);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -103,22 +158,20 @@ export default function DashboardPage() {
   }, [series]);
 
   function toggleWidget(id: WidgetId) {
-    setWidgets((items) => items.map((item) => (item.id === id ? { ...item, visible: !item.visible } : item)));
+    persistWidgets(widgets.map((item) => (item.id === id ? { ...item, visible: !item.visible } : item)));
   }
 
   function moveWidget(id: WidgetId, direction: -1 | 1) {
-    setWidgets((items) => {
-      const index = items.findIndex((item) => item.id === id);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= items.length) return items;
-      const next = [...items];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+    const index = widgets.findIndex((item) => item.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= widgets.length) return;
+    const next = [...widgets];
+    [next[index], next[target]] = [next[target], next[index]];
+    persistWidgets(next);
   }
 
   function resetWidgets() {
-    setWidgets(DEFAULT_WIDGETS);
+    persistWidgets(DEFAULT_WIDGETS);
   }
 
   function renderWidget(id: WidgetId) {
@@ -309,7 +362,18 @@ export default function DashboardPage() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-gray-900">自訂儀表板</h2>
-              <p className="mt-1 text-sm text-gray-500">選擇 widget、調整順序；設定會自動儲存在此瀏覽器。</p>
+              <p className="mt-1 text-sm text-gray-500">
+                選擇 widget、調整順序；設定會跟著帳號同步。
+                <span className="ml-2 text-xs text-gray-400">
+                  {preferenceStatus === "loading"
+                    ? "載入偏好中…"
+                    : preferenceStatus === "saving"
+                      ? "同步中…"
+                      : preferenceStatus === "saved"
+                        ? "已同步"
+                        : "暫存本機"}
+                </span>
+              </p>
             </div>
             <button type="button" onClick={resetWidgets} className="text-sm text-gray-500 hover:underline">恢復預設</button>
           </div>

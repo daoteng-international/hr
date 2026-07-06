@@ -162,6 +162,13 @@
       "when": 1783311636104,
       "tag": "0022_gifted_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783312546123,
+      "tag": "0023_careful_quasar",
+      "breakpoints": true
     }
   ]
 }

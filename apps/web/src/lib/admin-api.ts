@@ -1352,6 +1352,27 @@ export function getHeadcount(params: {
   }>(`/dashboard/headcount?${qs.toString()}`);
 }
 
+export interface UserPreference<T = unknown> {
+  id: string | null;
+  tenant_id: string;
+  employee_id: string;
+  key: string;
+  value: T | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export function getPreference<T = unknown>(key: string) {
+  return apiFetch<{ preference: UserPreference<T> }>(`/preferences/${encodeURIComponent(key)}`);
+}
+
+export function savePreference<T = unknown>(key: string, value: T) {
+  return apiFetch<{ preference: UserPreference<T> }>(`/preferences/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
+}
+
 export function getPayslip(id: string) {
   return apiFetch<{ payslip: Payslip & { breakdown: unknown } }>(`/payslips/${id}`);
 }
