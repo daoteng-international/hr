@@ -329,6 +329,15 @@ interface ScheduledDayRow {
   work_date: string
 }
 
+interface ExistingAnomalyNotificationRow {
+  employee_id: string
+  payload: {
+    anomalyType?: string
+    from?: string
+    to?: string
+  } | null
+}
+
 /**
  * detectAnomalies — scan a tenant's attendance_days over [from, to] and flag,
  * per employee:
@@ -460,19 +469,38 @@ export async function detectAnomalies(
       frequent_missing: "頻繁缺卡預警",
       excess_overtime: "加班超時預警",
     }
-    const rows = anomalies.map((a) => ({
-      tenant_id: tenantId,
-      employee_id: a.employeeId,
-      type: "anomaly",
-      title: labels[a.type],
-      body: `偵測到出勤異常：${labels[a.type]}（${from}~${to}）。`,
-      channel: "inapp",
-      status: "pending",
-      payload: { anomalyType: a.type, from, to, detail: a.detail },
-    }))
-    const { error: insErr } = await supabaseAdmin.from("notifications").insert(rows)
-    if (insErr) throw new Error(`detectAnomalies (queue): ${insErr.message}`)
-    queued = rows.length
+    const employeeIds = Array.from(new Set(anomalies.map((a) => a.employeeId)))
+    const { data: existingData, error: existingErr } = await supabaseAdmin
+      .from("notifications")
+      .select("employee_id, payload")
+      .eq("tenant_id", tenantId)
+      .eq("type", "anomaly")
+      .eq("status", "pending")
+      .in("employee_id", employeeIds)
+    if (existingErr) throw new Error(`detectAnomalies (existing): ${existingErr.message}`)
+
+    const existingKeys = new Set(
+      ((existingData ?? []) as ExistingAnomalyNotificationRow[])
+        .filter((row) => row.payload?.from === from && row.payload?.to === to)
+        .map((row) => `${row.employee_id}|${row.payload?.anomalyType}`),
+    )
+    const rows = anomalies
+      .filter((a) => !existingKeys.has(`${a.employeeId}|${a.type}`))
+      .map((a) => ({
+        tenant_id: tenantId,
+        employee_id: a.employeeId,
+        type: "anomaly",
+        title: labels[a.type],
+        body: `偵測到出勤異常：${labels[a.type]}（${from}~${to}）。`,
+        channel: "inapp",
+        status: "pending",
+        payload: { anomalyType: a.type, from, to, detail: a.detail },
+      }))
+    if (rows.length > 0) {
+      const { error: insErr } = await supabaseAdmin.from("notifications").insert(rows)
+      if (insErr) throw new Error(`detectAnomalies (queue): ${insErr.message}`)
+      queued = rows.length
+    }
   }
 
   return { anomalies, queued }

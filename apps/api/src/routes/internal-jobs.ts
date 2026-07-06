@@ -3,6 +3,7 @@ import { z } from "zod"
 import { supabaseAdmin } from "../lib/supabase.js"
 import { settleAttendance } from "../services/settlement.js"
 import { deliverPendingNotifications } from "../services/notification-delivery.js"
+import { scanMissingPunches, detectAnomalies } from "../services/detection.js"
 
 export const internalJobsRouter = Router()
 
@@ -16,8 +17,24 @@ const deliverNotificationsSchema = z.object({
   limit: z.number().int().min(1).max(200).optional(),
 })
 
+const detectAndNotifySchema = z.object({
+  date: z.string().regex(dateRe).optional(),
+  anomalyDays: z.number().int().min(1).max(31).optional(),
+})
+
 type DailySettleResult =
   | { tenantId: string; ok: true; settled: number }
+  | { tenantId: string; ok: false; error: string }
+
+type DetectAndNotifyResult =
+  | {
+      tenantId: string
+      ok: true
+      missing: number
+      missingQueued: number
+      anomalies: number
+      anomalyQueued: number
+    }
   | { tenantId: string; ok: false; error: string }
 
 function requireInternalToken(req: Request, res: Response): boolean {
@@ -44,6 +61,12 @@ function taipeiDateDaysAgo(daysAgo: number): string {
   }).formatToParts(date)
   const byType = new Map(parts.map((part) => [part.type, part.value]))
   return `${byType.get("year")}-${byType.get("month")}-${byType.get("day")}`
+}
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00.000Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
 }
 
 internalJobsRouter.post(
@@ -86,6 +109,70 @@ internalJobsRouter.post(
         date,
         tenants: results.length,
         settled: results.reduce((sum, item) => sum + (item.ok ? item.settled : 0), 0),
+        failed: results.filter((item) => !item.ok).length,
+        results,
+      })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+internalJobsRouter.post(
+  "/internal/attendance/detect-and-notify",
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!requireInternalToken(req, res)) return
+    const parsed = detectAndNotifySchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    const date = parsed.data.date ?? taipeiDateDaysAgo(1)
+    const anomalyDays = parsed.data.anomalyDays ?? 7
+    const from = addDays(date, -(anomalyDays - 1))
+
+    try {
+      const { data: tenants, error } = await supabaseAdmin
+        .from("tenants")
+        .select("id")
+        .eq("status", "active")
+      if (error) {
+        next(new Error(`POST /internal/attendance/detect-and-notify (tenants): ${error.message}`))
+        return
+      }
+
+      const results: DetectAndNotifyResult[] = []
+      for (const tenant of tenants ?? []) {
+        const tenantId = tenant.id as string
+        try {
+          const missing = await scanMissingPunches(tenantId, date)
+          const anomalies = await detectAnomalies(tenantId, { from, to: date, queue: true })
+          results.push({
+            tenantId,
+            ok: true,
+            missing: missing.missing.length,
+            missingQueued: missing.queued,
+            anomalies: anomalies.anomalies.length,
+            anomalyQueued: anomalies.queued,
+          })
+        } catch (err) {
+          results.push({
+            tenantId,
+            ok: false,
+            error: err instanceof Error ? err.message : "detection_failed",
+          })
+        }
+      }
+
+      res.status(200).json({
+        date,
+        anomalyWindow: { from, to: date, days: anomalyDays },
+        tenants: results.length,
+        missing: results.reduce((sum, item) => sum + (item.ok ? item.missing : 0), 0),
+        missingQueued: results.reduce((sum, item) => sum + (item.ok ? item.missingQueued : 0), 0),
+        anomalies: results.reduce((sum, item) => sum + (item.ok ? item.anomalies : 0), 0),
+        anomalyQueued: results.reduce((sum, item) => sum + (item.ok ? item.anomalyQueued : 0), 0),
         failed: results.filter((item) => !item.ok).length,
         results,
       })

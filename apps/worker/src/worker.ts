@@ -25,7 +25,7 @@ let attendanceWorker: Worker | null = null;
  * Registers a cron via upsertJobScheduler — idempotent, so re-deploys don't
  * pile up duplicate schedulers — and calls the API's protected internal settle
  * endpoint. The API owns tenant-scoped DB access and the @hr/rules settlement
- * implementation; the worker is just the clock.
+ * implementation plus detection services; the worker is just the clock.
  */
 async function registerSchedulers() {
   if (!attendanceQueue || !maybeRedis) return;
@@ -40,6 +40,11 @@ async function registerSchedulers() {
     { pattern: "*/5 * * * *", tz: "Asia/Taipei" },
     { name: "deliver-pending-notifications", data: { limit: 50 } },
   );
+  await attendanceQueue.upsertJobScheduler(
+    "detect-and-notify-attendance",
+    { pattern: "0 3 * * *", tz: "Asia/Taipei" },
+    { name: "detect-and-notify-attendance", data: { anomalyDays: 7 } },
+  );
 
   attendanceWorker = new Worker(
     "attendance",
@@ -49,22 +54,29 @@ async function registerSchedulers() {
       if (!apiUrl || !token) {
         logger.warn(
           { jobId: job.id, name: job.name, hasApiUrl: !!apiUrl, hasToken: !!token },
-          "daily-attendance-settle skipped: API_INTERNAL_URL/API_URL or INTERNAL_JOB_TOKEN missing",
+          "internal API job skipped: API_INTERNAL_URL/API_URL or INTERNAL_JOB_TOKEN missing",
         );
         return;
       }
 
       const baseUrl = apiUrl.replace(/\/$/, "");
-      const endpoint =
-        job.name === "deliver-pending-notifications"
-          ? "/internal/notifications/deliver-pending"
-          : "/internal/attendance/daily-settle";
+      const endpointByJob: Record<string, string> = {
+        "daily-attendance-settle": "/internal/attendance/daily-settle",
+        "deliver-pending-notifications": "/internal/notifications/deliver-pending",
+        "detect-and-notify-attendance": "/internal/attendance/detect-and-notify",
+      };
+      const endpoint = endpointByJob[job.name] ?? "/internal/attendance/daily-settle";
       const body =
         job.name === "deliver-pending-notifications"
           ? { limit: typeof job.data?.limit === "number" ? job.data.limit : 50 }
-          : typeof job.data?.date === "string"
-            ? { date: job.data.date }
-            : {};
+          : job.name === "detect-and-notify-attendance"
+            ? {
+                ...(typeof job.data?.date === "string" ? { date: job.data.date } : {}),
+                anomalyDays: typeof job.data?.anomalyDays === "number" ? job.data.anomalyDays : 7,
+              }
+            : typeof job.data?.date === "string"
+              ? { date: job.data.date }
+              : {};
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: "POST",
         headers: {
@@ -95,7 +107,9 @@ async function registerSchedulers() {
     logger.error({ queue: "attendance", err: err.message }, "worker error"),
   );
 
-  logger.info("Job schedulers registered (attendance daily, notifications every 5 minutes)");
+  logger.info(
+    "Job schedulers registered (attendance daily, detection daily, notifications every 5 minutes)",
+  );
 }
 
 // Minimal liveness endpoint so Railway's shared /health check passes for the
@@ -118,7 +132,7 @@ if (process.env.REDIS_URL) {
     logger.error({ err: err.message }, "failed to register job schedulers");
     process.exit(1);
   });
-  logger.info("Worker process started (attendance + notifications)");
+  logger.info("Worker process started (attendance + detection + notifications)");
 } else {
   // Skeleton mode: no broker, so we only run the health server. This keeps the
   // worker bootable on a bare laptop without Redis.

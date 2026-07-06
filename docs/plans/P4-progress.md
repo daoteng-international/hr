@@ -44,7 +44,13 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
       (`RESEND_API_KEY`, `NOTIFICATION_EMAIL_FROM`)，LINE 使用 Messaging API
       (`LINE_CHANNEL_ACCESS_TOKEN`，recipient 由通知 payload.lineUserId / line_user_id
       或員工 My Data 通訊資料 `line_user_id` 指定)。
-- [ ] **F5 worker cron 排程**：定時呼叫 scanMissingPunches / detectAnomalies（@hr/worker），自動產生佇列。
+- [x] **F5 worker cron 排程**：
+      `@hr/worker` 每天 02:00（Asia/Taipei）呼叫
+      `/internal/attendance/daily-settle` 結算昨日出勤、每天 03:00 呼叫
+      `/internal/attendance/detect-and-notify` 對所有 active tenant 執行
+      `scanMissingPunches`（昨日）與 `detectAnomalies`（預設近 7 日、queue=true），
+      並每 5 分鐘呼叫 `/internal/notifications/deliver-pending` 投遞外部通知。內部端點以
+      `INTERNAL_JOB_TOKEN` 保護；異常通知新增 pending 判重，避免排程重跑重複塞相同期間/類型提醒。
 
 ## 進度日誌
 （每完成一個功能在此追加一行：日期 / 功能 / commit / 測試結果）
@@ -66,3 +72,7 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
   ③ 遲到統計（同窗）：emp1 遲到 3 日 / 45 分（15+20+10，0 分日不計）、emp2 2 日 / 10 分；A 不含 B；員工 → 403。
   ④ 通知佇列：未登入 GET → 401；HR 看全租戶（含 emp1 那筆）且 tenant_id 全為 A、B 的佇列隔離；
      收件人可標自己已讀（200）、emp2 標 emp1 的 → 404。
+- 2026-07-06 / F5 worker cron 排程 / 內部端點 `POST /internal/attendance/detect-and-notify`
+  會遍歷 active tenants，對昨日執行忘打卡掃描、對預設近 7 日執行異常偵測並產生通知佇列；
+  `@hr/worker` 新增每日 03:00 `detect-and-notify-attendance` scheduler，並保留每日 02:00 結算與每 5 分鐘投遞。
+  `detectAnomalies(queue:true)` 加入 pending 通知判重，避免相同 employee/anomalyType/from/to 在 cron 重跑時重複建立。
