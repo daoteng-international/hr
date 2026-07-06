@@ -31,6 +31,7 @@ import { payrollTaxRouter } from "./routes/payroll-tax.js"
 import { dashboardRouter } from "./routes/dashboard.js"
 import { attachmentsRouter } from "./routes/attachments.js"
 import { internalJobsRouter } from "./routes/internal-jobs.js"
+import { personalNotesRouter } from "./routes/personal-notes.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -84,6 +85,7 @@ app.use(payrollTaxRouter)
 app.use(dashboardRouter)
 app.use(attachmentsRouter)
 app.use(internalJobsRouter)
+app.use(personalNotesRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {

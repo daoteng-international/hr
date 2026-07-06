@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { EssHeader } from "@/components/EssHeader";
@@ -8,8 +8,10 @@ import {
   getBranding,
   getPunchToday,
   getAnnouncements,
+  getPersonalNote,
   getRequests,
   postPunch,
+  savePersonalNote,
   getMe,
   isAdminRole,
   type Branding,
@@ -52,6 +54,8 @@ function EssHome() {
   const [internalLinks, setInternalLinks] = useState<InternalLink[]>([]);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const [noteStatus, setNoteStatus] = useState<"idle" | "saving" | "saved" | "local">("idle");
+  const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,10 +72,11 @@ function EssHome() {
     let active = true;
     (async () => {
       // Branding + announcements + me are best-effort; punch is the core.
-      const [brandRes, annRes, meRes] = await Promise.allSettled([
+      const [brandRes, annRes, meRes, noteRes] = await Promise.allSettled([
         getBranding(),
         getAnnouncements(),
         getMe(),
+        getPersonalNote(),
       ]);
       if (!active) return;
       if (brandRes.status === "fulfilled") {
@@ -83,10 +88,21 @@ function EssHome() {
       }
       if (annRes.status === "fulfilled") setAnnouncements(annRes.value.announcements);
       getRequests("pending").then((r) => setPendingCount(r.requests.length)).catch(() => null);
-      try {
-        setNote(localStorage.getItem("ess-sticky-note") ?? "");
-      } catch {
-        /* private mode */
+      if (noteRes.status === "fulfilled") {
+        setNote(noteRes.value.note.body);
+        setNoteStatus("saved");
+        try {
+          localStorage.setItem("ess-sticky-note", noteRes.value.note.body);
+        } catch {
+          /* private mode */
+        }
+      } else {
+        try {
+          setNote(localStorage.getItem("ess-sticky-note") ?? "");
+          setNoteStatus("local");
+        } catch {
+          setNoteStatus("local");
+        }
       }
       if (meRes.status === "fulfilled") setIsAdmin(isAdminRole(meRes.value.role));
       try {
@@ -99,8 +115,28 @@ function EssHome() {
     })();
     return () => {
       active = false;
+      if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current);
     };
   }, [loadPunch]);
+
+  function onNoteChange(value: string) {
+    setNote(value);
+    setNoteStatus("saving");
+    try {
+      localStorage.setItem("ess-sticky-note", value);
+    } catch {
+      /* ignore */
+    }
+    if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current);
+    noteSaveTimer.current = setTimeout(async () => {
+      try {
+        await savePersonalNote(value);
+        setNoteStatus("saved");
+      } catch {
+        setNoteStatus("local");
+      }
+    }, 600);
+  }
 
   async function onPunch() {
     setPunching(true);
@@ -252,18 +288,23 @@ function EssHome() {
             </button>
           </section>
           <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h2 className="mb-2 text-lg font-semibold text-gray-800">便利貼</h2>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-gray-800">便利貼</h2>
+              <span className="text-xs text-gray-400">
+                {noteStatus === "saving"
+                  ? "同步中…"
+                  : noteStatus === "saved"
+                    ? "已同步"
+                    : noteStatus === "local"
+                      ? "暫存本機"
+                      : ""}
+              </span>
+            </div>
             <textarea
               value={note}
-              onChange={(e) => {
-                setNote(e.target.value);
-                try {
-                  localStorage.setItem("ess-sticky-note", e.target.value);
-                } catch {
-                  /* ignore */
-                }
-              }}
-              placeholder="寫點什麼…（只存在這台裝置）"
+              onChange={(e) => onNoteChange(e.target.value)}
+              maxLength={4000}
+              placeholder="寫點什麼…會跟著你的帳號同步"
               className="h-20 w-full resize-none rounded-md border border-yellow-200 bg-yellow-50 p-2 text-sm focus:outline-none"
             />
           </section>
