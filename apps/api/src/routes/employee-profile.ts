@@ -184,6 +184,10 @@ employeeProfileRouter.get(
       // recent job-history row with a dept is when the current unit began.
       const unitStart =
         (jobHistory.data ?? []).find((j) => j.dept_id || j.dept_name)?.effective_date ?? hireDate
+      // 職等年資: years since the latest grade-bearing job-history entry.
+      const gradeStart =
+        (jobHistory.data ?? []).find((j) => typeof j.grade === "string" && j.grade.trim().length > 0)
+          ?.effective_date ?? null
       res.status(200).json({
         basic: basic.data,
         profile: profile.data ?? null,
@@ -194,7 +198,7 @@ employeeProfileRouter.get(
         seniorityDays: seniorityDays(hireDate),
         seniority: {
           internalYears: seniorityYears(hireDate),
-          gradeYears: null,
+          gradeYears: seniorityYears((gradeStart as string | null) ?? null),
           unitYears: seniorityYears((unitStart as string | null) ?? null),
         },
       })

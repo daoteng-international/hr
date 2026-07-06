@@ -133,6 +133,7 @@ describe("F-MyData 履歷 — employee profile aggregate + sub-resources", () =>
     // Apollo-parity additions: jobHistory list + seniority breakdown.
     expect(Array.isArray(res.body.jobHistory)).toBe(true)
     expect(res.body.seniority).toHaveProperty("internalYears")
+    expect(res.body.seniority).toHaveProperty("gradeYears")
     expect(res.body.seniority).toHaveProperty("unitYears")
   })
 
@@ -210,16 +211,17 @@ describe("F-MyData 履歷 — employee profile aggregate + sub-resources", () =>
     const ok = await request(app)
       .post(`/employees/${empId}/job-history`)
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ effectiveDate: "2026-01-01", action: "新進", deptName: "工程部", title: "工程師" })
+      .send({ effectiveDate: "2026-01-01", action: "新進", deptName: "工程部", grade: "P3", title: "工程師" })
     expect(ok.status).toBe(201)
 
     const res = await request(app)
       .get(`/employees/${empId}/profile`)
       .set("Authorization", `Bearer ${empToken}`)
-    const jh = res.body.jobHistory as Array<{ action: string; dept_name: string }>
-    expect(jh.some((j) => j.action === "新進" && j.dept_name === "工程部")).toBe(true)
-    // unitYears now derives from that entry's effective_date.
+    const jh = res.body.jobHistory as Array<{ action: string; dept_name: string; grade: string | null }>
+    expect(jh.some((j) => j.action === "新進" && j.dept_name === "工程部" && j.grade === "P3")).toBe(true)
+    // unitYears and gradeYears now derive from that entry's effective_date.
     expect(res.body.seniority.unitYears).not.toBeNull()
+    expect(res.body.seniority.gradeYears).not.toBeNull()
   })
 
   it("HR can read any employee's profile", async () => {
