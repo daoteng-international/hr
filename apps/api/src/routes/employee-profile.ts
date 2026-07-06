@@ -10,6 +10,17 @@ const dateRe = /^\d{4}-\d{2}-\d{2}$/
 const NIL = "00000000-0000-0000-0000-000000000000"
 const DOCUMENT_BUCKET = "employee-documents"
 const MAX_FILE_BYTES = 3 * 1024 * 1024
+const PROFILE_SELECT =
+  "id, first_name, last_name, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, photo_file_name, photo_storage_path, photo_size_bytes, photo_content_type, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, emergency_contact, emergency_relationship, emergency_phone, note, updated_at"
+const PROFILE_SELECT_BASE =
+  "id, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, emergency_contact, emergency_relationship, emergency_phone, note, updated_at"
+const EDUCATION_SELECT =
+  "id, school, is_highest, major_category, major, degree, study_type, study_status, region, start_date, end_date, proof_file_name, proof_storage_path, proof_size_bytes, proof_content_type"
+const EDUCATION_SELECT_BASE =
+  "id, school, is_highest, major_category, major, degree, study_type, study_status, region, start_date, end_date"
+const CERTIFICATION_SELECT =
+  "id, name, issuer, issued_date, expiry_date, attachment_file_name, attachment_storage_path, attachment_size_bytes, attachment_content_type"
+const CERTIFICATION_SELECT_BASE = "id, name, issuer, issued_date, expiry_date"
 
 const uploadSchema = z.object({
   fileName: z.string().trim().min(1).max(200),
@@ -190,23 +201,19 @@ employeeProfileRouter.get(
           .maybeSingle(),
         supabaseAdmin
           .from("employee_profiles")
-          .select(
-            "id, first_name, last_name, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, photo_file_name, photo_storage_path, photo_size_bytes, photo_content_type, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, emergency_contact, emergency_relationship, emergency_phone, note, updated_at",
-          )
+          .select(PROFILE_SELECT)
           .eq("tenant_id", tenantId)
           .eq("employee_id", empId)
           .maybeSingle(),
         supabaseAdmin
           .from("employee_educations")
-          .select(
-            "id, school, is_highest, major_category, major, degree, study_type, study_status, region, start_date, end_date, proof_file_name, proof_storage_path, proof_size_bytes, proof_content_type",
-          )
+          .select(EDUCATION_SELECT)
           .eq("tenant_id", tenantId)
           .eq("employee_id", empId)
           .order("start_date", { ascending: false }),
         supabaseAdmin
           .from("employee_certifications")
-          .select("id, name, issuer, issued_date, expiry_date, attachment_file_name, attachment_storage_path, attachment_size_bytes, attachment_content_type")
+          .select(CERTIFICATION_SELECT)
           .eq("tenant_id", tenantId)
           .eq("employee_id", empId)
           .order("issued_date", { ascending: false }),
@@ -229,6 +236,39 @@ employeeProfileRouter.get(
         return
       }
 
+      let profileData = profile.data as Record<string, unknown> | null
+      let educationRows = (educations.data ?? []) as Array<Record<string, unknown>>
+      let certificationRows = (certifications.data ?? []) as Array<Record<string, unknown>>
+      // If production receives the app before migration 0021 has run, keep the
+      // legacy My Data page usable by retrying without the new document columns.
+      if (profile.error) {
+        const fallback = await supabaseAdmin
+          .from("employee_profiles")
+          .select(PROFILE_SELECT_BASE)
+          .eq("tenant_id", tenantId)
+          .eq("employee_id", empId)
+          .maybeSingle()
+        profileData = (fallback.data as Record<string, unknown> | null) ?? null
+      }
+      if (educations.error) {
+        const fallback = await supabaseAdmin
+          .from("employee_educations")
+          .select(EDUCATION_SELECT_BASE)
+          .eq("tenant_id", tenantId)
+          .eq("employee_id", empId)
+          .order("start_date", { ascending: false })
+        educationRows = (fallback.data ?? []) as Array<Record<string, unknown>>
+      }
+      if (certifications.error) {
+        const fallback = await supabaseAdmin
+          .from("employee_certifications")
+          .select(CERTIFICATION_SELECT_BASE)
+          .eq("tenant_id", tenantId)
+          .eq("employee_id", empId)
+          .order("issued_date", { ascending: false })
+        certificationRows = (fallback.data ?? []) as Array<Record<string, unknown>>
+      }
+
       const hireDate = (basic.data.hire_date as string | null) ?? null
       // 單位年資: years since the latest dept-changing entry (or hire) — the most
       // recent job-history row with a dept is when the current unit began.
@@ -240,20 +280,20 @@ employeeProfileRouter.get(
           ?.effective_date ?? null
       res.status(200).json({
         basic: basic.data,
-        profile: profile.data
+        profile: profileData
           ? {
-              ...profile.data,
-              photo_url: await signedUrl((profile.data.photo_storage_path as string | null) ?? null),
+              ...profileData,
+              photo_url: await signedUrl((profileData.photo_storage_path as string | null) ?? null),
             }
           : null,
         educations: await Promise.all(
-          (educations.data ?? []).map(async (row) => ({
+          educationRows.map(async (row) => ({
             ...row,
             proof_url: await signedUrl((row.proof_storage_path as string | null) ?? null),
           })),
         ),
         certifications: await Promise.all(
-          (certifications.data ?? []).map(async (row) => ({
+          certificationRows.map(async (row) => ({
             ...row,
             attachment_url: await signedUrl((row.attachment_storage_path as string | null) ?? null),
           })),
@@ -340,11 +380,22 @@ employeeProfileRouter.put(
         const v = (d as Record<string, unknown>)[field]
         if (v !== undefined) row[col] = v
       }
-      const { data, error } = await supabaseAdmin
+      let { data, error } = await supabaseAdmin
         .from("employee_profiles")
         .upsert(row, { onConflict: "tenant_id,employee_id" })
         .select("id")
         .single()
+      if (error && ("first_name" in row || "last_name" in row)) {
+        delete row.first_name
+        delete row.last_name
+        const retry = await supabaseAdmin
+          .from("employee_profiles")
+          .upsert(row, { onConflict: "tenant_id,employee_id" })
+          .select("id")
+          .single()
+        data = retry.data
+        error = retry.error
+      }
       if (error || !data) {
         next(new Error(`PUT /employees/${empId}/profile: ${error?.message}`))
         return
