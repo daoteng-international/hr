@@ -13,7 +13,7 @@
 | ⑤ Dashboard | ✅ | ✅ | ✅ 212綠 | 🔄 push即部署 | employees.terminated_at(0017)+deactivate 蓋離職日；GET /dashboard/headcount(期初/新進/離職/期末, 單位/身分篩選)；/admin/dashboard 圖表頁 |
 
 ## 完成定義（全部打勾才算完成）
-- [x] Foundation 欄位對齊 + 測試綠 + 已部署（commit 待補 sha）
+- [x] Foundation 欄位對齊 + 測試綠 + 已部署
 - [x] Attendance recon + 欄位對齊 + 測試綠 + 已部署
 - [x] Payroll recon + 欄位對齊 + 測試綠 + 已部署
 - [x] Recruitment recon + 欄位對齊 + 測試綠 + 已部署

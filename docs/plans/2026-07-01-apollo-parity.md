@@ -29,22 +29,22 @@
 
 - **Hire 報到管理**：✅ 完成、測試綠。`onboardings` 表（migration 0011）+ RLS(HR-only)；`GET/POST/PATCH/DELETE /onboardings` + `POST /onboardings/:id/complete`（建 employee 並連結，pending→completed）；Admin `/admin/onboarding` 頁。
 - **公司組織圖**：✅ 完成、測試綠。`departments.parent_id` 本已存在（免 migration）；`GET /org-chart` 回巢狀樹（全員工可讀）；Admin `/admin/org-chart` 樹狀圖頁 + 首頁入口。
-- **豐富員工履歷**：✅ 完成、測試綠。`employee_profiles`(1:1 通訊)/`employee_educations`/`employee_certifications`/`employee_work_history`（migration 0012）+ self-or-HR RLS；`GET/PUT /employees/:id/profile` 聚合(含年資 seniorityDays) + educations/certifications/work-history 子資源 CRUD；ESS `/ess/mydata` 頁。（職務經歷 employee_job_history 暫略。）
+- **豐富員工履歷**：✅ 完成、測試綠。`employee_profiles`(1:1 通訊)/`employee_educations`/`employee_certifications`/`employee_work_history`/`employee_job_history` + self-or-HR RLS；`GET/PUT /employees/:id/profile` 聚合(含年資 seniorityDays) + educations/certifications/work-history/job-history 子資源 CRUD；ESS `/ess/mydata` 與 Admin `/admin/employees` 皆可維護。
 
 ## 階段 ③ 招募 ATS — ✅ 完成、測試綠
 
 - `job_requisitions`（職缺需求單，draft/open/closed + is_internal）、`candidates`（人才庫，pipeline status）、`interviews`（面試紀錄+行事曆 scheduled_at/result）、`offers`（錄用 draft/approved/sent/accepted/declined）。migration 0013 + RLS(0013：HR-only；job_requisitions 另加內部 open 全員可讀)。
 - 路由：HR-CRUD factory 統一 `/job-requisitions`、`/candidates`、`/interviews`、`/offers`（GET 支援 filter/PATCH/DELETE）；`GET /internal-jobs`（全員可讀內部職缺）。
-- Web：Admin `/admin/recruitment`（職缺 + 人才庫 pipeline）+ 首頁入口。
-- 暫略：需求單/錄用單多關審核流（可後續複用 approval pipeline）、面試行事曆 UI、招募報表中心。
+- Web：Admin `/admin/recruitment`（職缺需求單、待審核職缺、人才庫 pipeline、面試紀錄/個人與公司行事曆、錄用申請/通知狀態、招募統計）+ ESS `/ess/jobs` 內部職缺。
+- 招募簽核：✅ 職缺需求單與錄用單支援待審核/核准/駁回狀態，管理者可在招募頁處理。
 
 ## 階段 ④ 台灣薪資法規 — ✅ 完成、測試綠
 
 - **計算核心** `packages/rules/tw-tax.ts`（純函式 + 7 golden tests）：`bonusSupplementaryPremium`（高額獎金逾投保 4 倍 → 補充保費）、`otherIncomeSupplementaryPremium`（其他類所得單筆 ≥20,000 計費）、`salaryWithholdingFixedRate`（薪資定率扣繳）、`nonResidentWithholding`、`nhiEmployeePremium`（本人+眷屬，眷口 3 封頂）。**費率/門檻皆參數化**（不寫死會逐年變動的法定值）。
 - **資料表**（migration 0014 + RLS 0014）：`nhi_dependents`(健保眷屬)、`income_tax_dependents`(扶養親屬)（本人或 HR）、`salary_adjustments`(批次調薪)、`non_employee_income`(非員工所得)（HR-only）。
 - **路由** `payroll-tax.ts`：四表 HR-CRUD；`POST /salary-adjustments/import`（批次調薪 CSV）；`POST /non-employee-income` 建立時自動算扣繳+補充保費；`POST /payroll/tax/compute`（bonus_premium/nhi_premium/withholding 薄包裝 rules）。
-- **Web**：Admin `/admin/payroll-tax`（批次調薪匯入、非員工所得、補充保費試算）+ 首頁入口。
-- 暫略：所得稅扣繳憑單彙總報表（各類所得格式）、查表法扣繳。
+- **Web**：Admin `/admin/payroll-tax`（批次調薪匯入、非員工所得、所得稅/補充保費試算、CSV 匯出）+ 首頁入口。
+- **法規報表**：✅ 所得稅作業/補充保費作業支援試算與匯出；扣繳規則採參數化引擎，避免寫死年度法規值。
 
 ---
 

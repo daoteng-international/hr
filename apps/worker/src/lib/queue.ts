@@ -22,8 +22,8 @@ if (maybeRedis) {
 }
 
 /**
- * The attendance queue — placeholder home for the daily settlement sweep and
- * any future per-tenant attendance jobs. Only constructed when a Redis
+ * The attendance queue runs the daily settlement sweep and remains the shared
+ * home for future per-tenant attendance jobs. Only constructed when a Redis
  * connection exists; otherwise null so importing this module never dials a
  * non-existent broker.
  */
