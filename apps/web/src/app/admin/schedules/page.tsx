@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Card, PageHeader, PrimaryButton, ErrorText, Empty, inputCls, labelCls } from "@/components/admin-ui";
 import {
+  getDepartments,
   getEmployees,
   getShifts,
   getSchedules,
@@ -10,6 +11,7 @@ import {
   assignSchedulesBatch,
   importSchedules,
   reviewSchedule,
+  type Department,
   type Employee,
   type Shift,
   type Schedule,
@@ -28,6 +30,14 @@ const STATUS_OPTIONS = [
   { value: "day_off", label: "休假" },
   { value: "disputed", label: "有爭議" },
 ];
+
+const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
+  regular: "正職",
+  parttime: "兼職",
+  contract: "約聘",
+  dispatched: "派遣",
+  intern: "實習",
+};
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -51,6 +61,7 @@ function dateRange(from: string, to: string): string[] {
 }
 
 export default function SchedulesPage() {
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -78,13 +89,27 @@ export default function SchedulesPage() {
   const [from, setFrom] = useState(todayIso());
   const [to, setTo] = useState(plusDaysIso(14));
   const [filterEmp, setFilterEmp] = useState("");
+  const [filterDept, setFilterDept] = useState("");
+  const [filterEmploymentType, setFilterEmploymentType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  const employeeById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
 
   const empName = useMemo(() => {
     const m = new Map<string, string>();
     for (const e of employees) m.set(e.id, e.emp_no ? `${e.emp_no} / ${e.name}` : e.name);
     return m;
+  }, [employees]);
+
+  const deptName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const department of departments) m.set(department.id, department.name);
+    return m;
+  }, [departments]);
+
+  const employmentTypes = useMemo(() => {
+    return Array.from(new Set(employees.map((employee) => employee.employment_type).filter(Boolean) as string[])).sort();
   }, [employees]);
 
   const shiftName = useMemo(() => {
@@ -94,8 +119,15 @@ export default function SchedulesPage() {
   }, [shifts]);
 
   const visibleSchedules = useMemo(
-    () => schedules.filter((schedule) => !filterStatus || schedule.status === filterStatus),
-    [filterStatus, schedules],
+    () =>
+      schedules.filter((schedule) => {
+        const employee = employeeById.get(schedule.employee_id);
+        if (filterStatus && schedule.status !== filterStatus) return false;
+        if (filterDept && employee?.dept_id !== filterDept) return false;
+        if (filterEmploymentType && employee?.employment_type !== filterEmploymentType) return false;
+        return true;
+      }),
+    [employeeById, filterDept, filterEmploymentType, filterStatus, schedules],
   );
 
   const summary = useMemo(() => {
@@ -122,10 +154,11 @@ export default function SchedulesPage() {
     let active = true;
     (async () => {
       try {
-        const [empRes, shiftRes] = await Promise.all([getEmployees(), getShifts()]);
+        const [empRes, shiftRes, deptRes] = await Promise.all([getEmployees(), getShifts(), getDepartments()]);
         if (!active) return;
         setEmployees(empRes.employees);
         setShifts(shiftRes.shifts);
+        setDepartments(deptRes.departments);
         const firstEmployee = empRes.employees[0]?.id ?? "";
         setEmployeeId(firstEmployee);
         setBatchEmp(firstEmployee);
@@ -231,7 +264,7 @@ export default function SchedulesPage() {
 
   return (
     <>
-      <PageHeader title="排班與班表審核" desc="支援單日排班、區間批次、CSV 匯入與員工確認/爭議狀態管理。" />
+      <PageHeader title="排班與班表審核" desc="支援單日排班、區間批次、CSV 匯入、單位/工時制篩選與員工確認/爭議狀態管理。" />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card>
@@ -351,7 +384,7 @@ export default function SchedulesPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-gray-900">班表清單與審核</h2>
-            <p className="mt-1 text-sm text-gray-500">可依日期、員工、狀態查詢，並由 HR 代為確認或標記爭議。</p>
+            <p className="mt-1 text-sm text-gray-500">可依日期、單位、工時制、員工與狀態查詢，並由 HR 代為確認或標記爭議。</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             {STATUS_OPTIONS.map((item) => (
@@ -362,7 +395,7 @@ export default function SchedulesPage() {
           </div>
         </div>
 
-        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-5">
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-7">
           <div>
             <label className={labelCls}>起</label>
             <input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -370,6 +403,24 @@ export default function SchedulesPage() {
           <div>
             <label className={labelCls}>訖</label>
             <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>單位</label>
+            <select className={inputCls} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+              <option value="">全部</option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>{department.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>工時制 / 身分類別</label>
+            <select className={inputCls} value={filterEmploymentType} onChange={(e) => setFilterEmploymentType(e.target.value)}>
+              <option value="">全部</option>
+              {employmentTypes.map((type) => (
+                <option key={type} value={type}>{EMPLOYMENT_TYPE_LABEL[type] ?? type}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelCls}>員工</label>
@@ -407,6 +458,8 @@ export default function SchedulesPage() {
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-500">
                   <th className="py-2 pr-4">日期</th>
+                  <th className="py-2 pr-4">單位</th>
+                  <th className="py-2 pr-4">工時制</th>
                   <th className="py-2 pr-4">工號/姓名</th>
                   <th className="py-2 pr-4">班別</th>
                   <th className="py-2 pr-4">狀態</th>
@@ -414,38 +467,47 @@ export default function SchedulesPage() {
                 </tr>
               </thead>
               <tbody>
-                {visibleSchedules.map((s) => (
-                  <tr key={s.id} className="border-b border-gray-50">
-                    <td className="py-2 pr-4 tabular-nums text-gray-500">{s.work_date}</td>
-                    <td className="py-2 pr-4 font-medium text-gray-800">{empName.get(s.employee_id) ?? s.employee_id}</td>
-                    <td className="py-2 pr-4 text-gray-600">{s.shift_id ? (shiftName.get(s.shift_id) ?? "班別") : "休假／未指定"}</td>
-                    <td className="py-2 pr-4">
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                        {STATUS_LABEL[s.status] ?? s.status}
-                      </span>
-                    </td>
-                    <td className="py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void onReview(s.id, "acknowledge")}
-                          disabled={reviewingId === s.id}
-                          className="rounded-md border border-green-200 px-3 py-1 text-xs font-medium text-green-700 disabled:opacity-50"
-                        >
-                          確認
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void onReview(s.id, "dispute")}
-                          disabled={reviewingId === s.id}
-                          className="rounded-md border border-amber-200 px-3 py-1 text-xs font-medium text-amber-700 disabled:opacity-50"
-                        >
-                          標記爭議
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {visibleSchedules.map((s) => {
+                  const employee = employeeById.get(s.employee_id);
+                  return (
+                    <tr key={s.id} className="border-b border-gray-50">
+                      <td className="py-2 pr-4 tabular-nums text-gray-500">{s.work_date}</td>
+                      <td className="py-2 pr-4 text-gray-600">
+                        {employee?.dept_id ? (deptName.get(employee.dept_id) ?? "未命名單位") : "—"}
+                      </td>
+                      <td className="py-2 pr-4 text-gray-600">
+                        {employee?.employment_type ? (EMPLOYMENT_TYPE_LABEL[employee.employment_type] ?? employee.employment_type) : "—"}
+                      </td>
+                      <td className="py-2 pr-4 font-medium text-gray-800">{empName.get(s.employee_id) ?? s.employee_id}</td>
+                      <td className="py-2 pr-4 text-gray-600">{s.shift_id ? (shiftName.get(s.shift_id) ?? "班別") : "休假／未指定"}</td>
+                      <td className="py-2 pr-4">
+                        <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                          {STATUS_LABEL[s.status] ?? s.status}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void onReview(s.id, "acknowledge")}
+                            disabled={reviewingId === s.id}
+                            className="rounded-md border border-green-200 px-3 py-1 text-xs font-medium text-green-700 disabled:opacity-50"
+                          >
+                            確認
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void onReview(s.id, "dispute")}
+                            disabled={reviewingId === s.id}
+                            className="rounded-md border border-amber-200 px-3 py-1 text-xs font-medium text-amber-700 disabled:opacity-50"
+                          >
+                            標記爭議
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
