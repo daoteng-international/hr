@@ -169,6 +169,13 @@
       "when": 1783312546123,
       "tag": "0023_careful_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783329187808,
+      "tag": "0024_broad_umar",
+      "breakpoints": true
     }
   ]
 }

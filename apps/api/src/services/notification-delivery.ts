@@ -25,6 +25,7 @@ interface ProfileRow {
   employee_id: string
   company_email: string | null
   personal_email: string | null
+  line_user_id?: string | null
 }
 
 export interface DeliveryResult {
@@ -137,7 +138,7 @@ async function resolveRecipients(rows: NotificationRow[]) {
       supabaseAdmin.from("employees").select("id, user_id, name").in("id", employeeIds),
       supabaseAdmin
         .from("employee_profiles")
-        .select("employee_id, company_email, personal_email")
+        .select("employee_id, company_email, personal_email, line_user_id")
         .in("employee_id", employeeIds),
     ])
   if (employeesErr) throw new Error(`deliver notifications employees: ${employeesErr.message}`)
@@ -151,9 +152,10 @@ async function resolveRecipients(rows: NotificationRow[]) {
   }
 }
 
-function lineUserId(row: NotificationRow): string | null {
+function lineUserId(row: NotificationRow, profile?: ProfileRow): string | null {
   const value = row.payload?.lineUserId ?? row.payload?.line_user_id
-  return typeof value === "string" && value.trim() ? value.trim() : null
+  if (typeof value === "string" && value.trim()) return value.trim()
+  return profile?.line_user_id?.trim() || null
 }
 
 async function updateDeliveryState(row: NotificationRow, result: DeliveryResult) {
@@ -226,7 +228,7 @@ export async function deliverPendingNotifications(
           if (!to) throw new Error("recipient email missing")
           await sendEmail(to, row)
         } else {
-          const to = lineUserId(row)
+          const to = lineUserId(row, profile)
           if (!to) throw new Error("LINE user id missing in notification payload")
           await sendLine(to, row)
         }

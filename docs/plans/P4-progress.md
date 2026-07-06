@@ -42,7 +42,8 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
       `/admin/notifications` 可手動投遞；worker 每 5 分鐘呼叫
       `/internal/notifications/deliver-pending`。Email 使用 Resend
       (`RESEND_API_KEY`, `NOTIFICATION_EMAIL_FROM`)，LINE 使用 Messaging API
-      (`LINE_CHANNEL_ACCESS_TOKEN`，recipient 由 payload.lineUserId / line_user_id 指定)。
+      (`LINE_CHANNEL_ACCESS_TOKEN`，recipient 由通知 payload.lineUserId / line_user_id
+      或員工 My Data 通訊資料 `line_user_id` 指定)。
 - [ ] **F5 worker cron 排程**：定時呼叫 scanMissingPunches / detectAnomalies（@hr/worker），自動產生佇列。
 
 ## 進度日誌

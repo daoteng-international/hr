@@ -10,6 +10,7 @@ import { employees } from "./employees"
  *   gender 性別, maritalStatus 婚姻, photo 員工照片.
  *   通訊: phone 手機, phoneMobile2 手機2, phoneLandline 市話, registeredAddress
  *   戶籍地址, address 聯絡地址, companyEmail 公司信箱, personalEmail 私人信箱,
+ *   lineUserId LINE Messaging API user id,
  *   emergencyContact/emergencyRelationship/emergencyPhone 緊急聯絡人組.
  * Unique (tenant_id, employee_id) makes it a true 1:1 and powers the upsert in
  * PUT /employees/:id/profile.
@@ -54,6 +55,7 @@ export const employeeProfiles = pgTable(
     address: text("address"),
     companyEmail: text("company_email"),
     personalEmail: text("personal_email"),
+    lineUserId: text("line_user_id"),
     emergencyContact: text("emergency_contact"),
     emergencyRelationship: text("emergency_relationship"),
     emergencyPhone: text("emergency_phone"),

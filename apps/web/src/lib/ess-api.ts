@@ -318,6 +318,7 @@ export interface EmployeeProfile {
   address: string | null;
   company_email: string | null;
   personal_email: string | null;
+  line_user_id: string | null;
   emergency_contact: string | null;
   emergency_relationship: string | null;
   emergency_phone: string | null;
@@ -350,6 +351,7 @@ export interface SaveProfileBody {
   address?: string | null;
   companyEmail?: string | null;
   personalEmail?: string | null;
+  lineUserId?: string | null;
   emergencyContact?: string | null;
   emergencyRelationship?: string | null;
   emergencyPhone?: string | null;

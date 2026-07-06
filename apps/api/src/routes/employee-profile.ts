@@ -11,7 +11,7 @@ const NIL = "00000000-0000-0000-0000-000000000000"
 const DOCUMENT_BUCKET = "employee-documents"
 const MAX_FILE_BYTES = 3 * 1024 * 1024
 const PROFILE_SELECT =
-  "id, first_name, last_name, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, photo_file_name, photo_storage_path, photo_size_bytes, photo_content_type, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, emergency_contact, emergency_relationship, emergency_phone, note, updated_at"
+  "id, first_name, last_name, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, photo_file_name, photo_storage_path, photo_size_bytes, photo_content_type, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, line_user_id, emergency_contact, emergency_relationship, emergency_phone, note, updated_at"
 const PROFILE_SELECT_BASE =
   "id, english_name, nationality, id_type, id_number, id_expiry, id_type2, id_number2, id_expiry2, id_type3, id_number3, id_expiry3, entry_date, birthday, gender, marital_status, phone, phone_mobile2, phone_landline, registered_address, address, company_email, personal_email, emergency_contact, emergency_relationship, emergency_phone, note, updated_at"
 const EDUCATION_SELECT =
@@ -78,6 +78,7 @@ const profileSchema = z.object({
   address: z.string().trim().nullish(),
   companyEmail: z.string().trim().nullish(),
   personalEmail: z.string().trim().nullish(),
+  lineUserId: z.string().trim().nullish(),
   emergencyContact: z.string().trim().nullish(),
   emergencyRelationship: z.string().trim().nullish(),
   emergencyPhone: z.string().trim().nullish(),
@@ -366,6 +367,7 @@ employeeProfileRouter.put(
         address: "address",
         companyEmail: "company_email",
         personalEmail: "personal_email",
+        lineUserId: "line_user_id",
         emergencyContact: "emergency_contact",
         emergencyRelationship: "emergency_relationship",
         emergencyPhone: "emergency_phone",

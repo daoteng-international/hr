@@ -10,7 +10,7 @@
 另：更改個人大頭照、動態訊息。
 
 ### My Data ▸ 通訊資料 (/Foundation/mydata/contactinfo)
-電話(手機)、戶籍地址、聯絡地址、公司信箱、私人信箱、緊急聯絡人、緊急聯絡人關係、電話(市話)、電話(手機2)。
+電話(手機)、戶籍地址、聯絡地址、公司信箱、私人信箱、LINE User ID、緊急聯絡人、緊急聯絡人關係、電話(市話)、電話(手機2)。
 
 ### My Data ▸ 學歷證照 (/Foundation/mydata/certificationandeducationinfo)
 兩區塊：學歷資料、證照資料（各有 +新增；有「申請修改資料」流程）。
