@@ -44,6 +44,16 @@ const STATUS_LABEL: Record<RequestStatus, string> = {
   cancelled: "已取消",
 };
 
+const PAYOUT_LABEL: Record<"pay" | "comp_time", string> = {
+  pay: "加班費",
+  comp_time: "補休",
+};
+
+type RequestWithApolloExtras = LeaveRequest & {
+  payout?: "pay" | "comp_time" | null;
+  remark?: string | null;
+};
+
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString("zh-TW", {
     month: "2-digit",
@@ -56,6 +66,30 @@ function fmt(iso: string): string {
 /** Convert a <input type="datetime-local"> value to an ISO string the API accepts. */
 function toIso(local: string): string {
   return new Date(local).toISOString();
+}
+
+function fmtLocal(local: string): string {
+  if (!local) return "尚未填寫";
+  const date = new Date(local);
+  if (Number.isNaN(date.getTime())) return local.replace("T", " ");
+  return date.toLocaleString("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function hoursBetweenLocal(start: string, end: string): number | null {
+  if (!start || !end) return null;
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return null;
+  return Math.round(((endMs - startMs) / 3_600_000) * 100) / 100;
+}
+
+function fmtDecimalHours(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 
 function RequestsView() {
@@ -76,6 +110,8 @@ function RequestsView() {
   // Apollo form-parity extras
   const [agentName, setAgentName] = useState("");
   const [payout, setPayout] = useState<"pay" | "comp_time">("pay");
+  const [otBreakMinutes, setOtBreakMinutes] = useState("0");
+  const [otHoursTouched, setOtHoursTouched] = useState(false);
   const [tripType, setTripType] = useState<"outing" | "business_trip">("outing");
   const [location, setLocation] = useState("");
   const [remark, setRemark] = useState("");
@@ -159,6 +195,17 @@ function RequestsView() {
     );
   }
   const segmentsTotal = segments.reduce((s, x) => s + x.hours, 0);
+  const otGrossHours = hoursBetweenLocal(startAt, endAt);
+  const otBreakMinutesValue = Math.max(0, Number(otBreakMinutes) || 0);
+  const otNetHours =
+    otGrossHours == null
+      ? null
+      : Math.max(0, Math.round((otGrossHours - otBreakMinutesValue / 60) * 100) / 100);
+
+  useEffect(() => {
+    if (kind !== "ot" || otHoursTouched || otNetHours == null) return;
+    setHours(fmtDecimalHours(otNetHours));
+  }, [kind, otHoursTouched, otNetHours]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -195,7 +242,16 @@ function RequestsView() {
           ? new Date(`${segments[segments.length - 1].date}T${segments[segments.length - 1].endTime}:00`).toISOString()
           : toIso(endAt),
         hours: useSegs ? segmentsTotal : hours ? Number(hours) : undefined,
-        reason: reason.trim() || undefined,
+        reason:
+          kind === "ot"
+            ? [
+                reason.trim(),
+                `休息扣除：${otBreakMinutesValue} 分鐘`,
+                `給付方式：${PAYOUT_LABEL[payout]}`,
+              ]
+                .filter(Boolean)
+                .join("｜")
+            : reason.trim() || undefined,
         agentName: agentName.trim() || undefined,
         payout: kind === "ot" ? payout : undefined,
         tripType: kind === "business_trip" ? tripType : undefined,
@@ -360,7 +416,10 @@ function RequestsView() {
                   type="datetime-local"
                   required
                   value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
+                  onChange={(e) => {
+                    setStartAt(e.target.value);
+                    if (kind === "ot") setOtHoursTouched(false);
+                  }}
                   className={inputCls}
                 />
               </div>
@@ -370,22 +429,78 @@ function RequestsView() {
                   type="datetime-local"
                   required
                   value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
+                  onChange={(e) => {
+                    setEndAt(e.target.value);
+                    if (kind === "ot") setOtHoursTouched(false);
+                  }}
                   className={inputCls}
                 />
               </div>
             </div>
 
+            {kind === "ot" && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-medium text-blue-900">加班申請資訊</h3>
+                    <p className="mt-1 text-sm text-blue-700">請確認加班區間、休息扣除與給付方式；送出後會進入簽核流程。</p>
+                  </div>
+                  <a href="/ess/punches" className="text-sm font-medium text-blue-700 hover:underline">
+                    查看打卡參考
+                  </a>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg bg-white/80 p-3">
+                    <p className="text-xs text-blue-600">加班區間</p>
+                    <p className="mt-1 text-sm font-medium text-blue-950">{fmtLocal(startAt)} → {fmtLocal(endAt)}</p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-blue-700">休息扣除（分鐘）</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={otBreakMinutes}
+                      onChange={(event) => {
+                        setOtBreakMinutes(event.target.value);
+                        setOtHoursTouched(false);
+                      }}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="rounded-lg bg-white/80 p-3">
+                    <p className="text-xs text-blue-600">淨加班時數</p>
+                    <p className="mt-1 text-lg font-semibold text-blue-950">
+                      {otNetHours == null ? "—" : `${fmtDecimalHours(otNetHours)} 小時`}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-blue-700">
+                  打卡參考目前提供跳轉查閱；若實際打卡缺漏，請改選「補卡」或先完成忘打卡申請。
+                </p>
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">時數（選填）</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {kind === "ot" ? "加班時數" : "時數（選填）"}
+              </label>
               <input
                 type="number"
                 min="0"
                 step="0.5"
                 value={hours}
-                onChange={(e) => setHours(e.target.value)}
+                onChange={(e) => {
+                  setHours(e.target.value);
+                  if (kind === "ot") setOtHoursTouched(true);
+                }}
                 className={inputCls}
               />
+              {kind === "ot" && (
+                <p className="mt-1 text-xs text-gray-500">
+                  預設由起訖時間扣除休息分鐘自動計算，可手動覆寫。
+                </p>
+              )}
             </div>
 
             {kind === "ot" && (
@@ -519,6 +634,11 @@ function RequestsView() {
                     {fmt(r.start_at)} → {fmt(r.end_at)}
                     {r.hours != null ? ` · ${r.hours} 小時` : ""}
                   </p>
+                  {r.kind === "ot" && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      給付方式：{PAYOUT_LABEL[(r as RequestWithApolloExtras).payout ?? "pay"]}；打卡參考請至打卡紀錄查詢
+                    </p>
+                  )}
                   {r.reason && (
                     <p className="mt-1 text-sm text-gray-600">{r.reason}</p>
                   )}

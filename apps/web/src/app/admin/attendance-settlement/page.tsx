@@ -10,9 +10,26 @@ import {
   type Employee,
 } from "@/lib/admin-api";
 
-const today = new Date().toISOString().slice(0, 10);
-const weekAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
 const monthNow = new Date().toISOString().slice(0, 7);
+
+type DataType = "all" | "worked" | "late" | "overtime" | "night" | "anomaly";
+type SettlementStatus = "unsettled" | "settled" | "transferred";
+type SettlementStatusFilter = "all" | SettlementStatus;
+
+const dataTypeLabels: Record<DataType, string> = {
+  all: "全部",
+  worked: "有出勤",
+  late: "遲到",
+  overtime: "加班",
+  night: "夜間",
+  anomaly: "異常",
+};
+
+const settlementStatusLabels: Record<SettlementStatus, string> = {
+  unsettled: "未結算",
+  settled: "已結算",
+  transferred: "已拋轉",
+};
 
 function minutes(value: number) {
   const hours = Math.floor(value / 60);
@@ -27,10 +44,38 @@ function monthRange(month: string) {
   return { start, end };
 }
 
-function downloadCsv(rows: AttendanceDay[], employeeName: Map<string, string>, filename: string) {
-  const header = ["薪資月份", "員工", "日期", "工作分鐘", "遲到分鐘", "加班分鐘", "夜間分鐘", "日別", "異常"];
+const defaultRange = monthRange(monthNow);
+
+function downloadCsv(
+  rows: AttendanceDay[],
+  employeeName: Map<string, string>,
+  options: {
+    payrollMonth: string;
+    dataType: DataType;
+    settlementStatus: SettlementStatus;
+    cutoffDate: string;
+    filenameSuffix: string;
+  },
+) {
+  const header = [
+    "薪資年月",
+    "資料類型",
+    "結算狀態",
+    "截止日",
+    "員工",
+    "日期",
+    "工作分鐘",
+    "遲到分鐘",
+    "加班分鐘",
+    "夜間分鐘",
+    "日別",
+    "異常",
+  ];
   const csvRows = rows.map((row) => [
-    filename,
+    options.payrollMonth,
+    dataTypeLabels[options.dataType],
+    settlementStatusLabels[options.settlementStatus],
+    options.cutoffDate,
     employeeName.get(row.employee_id) ?? row.employee_id,
     row.work_date,
     row.worked_minutes,
@@ -47,7 +92,7 @@ function downloadCsv(rows: AttendanceDay[], employeeName: Map<string, string>, f
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `attendance-payroll-transfer-${filename}.csv`;
+  anchor.download = `attendance-payroll-transfer-${options.filenameSuffix}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -57,9 +102,13 @@ export default function AttendanceSettlementPage() {
   const [rows, setRows] = useState<AttendanceDay[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [payrollMonth, setPayrollMonth] = useState(monthNow);
-  const [from, setFrom] = useState(weekAgo);
-  const [to, setTo] = useState(today);
-  const [dataType, setDataType] = useState<"all" | "worked" | "late" | "overtime" | "night" | "anomaly">("all");
+  const [from, setFrom] = useState(defaultRange.start);
+  const [to, setTo] = useState(defaultRange.end);
+  const [cutoffDate, setCutoffDate] = useState(defaultRange.end);
+  const [dataType, setDataType] = useState<DataType>("all");
+  const [settlementStatus, setSettlementStatus] = useState<SettlementStatus>("unsettled");
+  const [settlementStatusFilter, setSettlementStatusFilter] = useState<SettlementStatusFilter>("all");
+  const [transferredAt, setTransferredAt] = useState<string | null>(null);
   const [dayType, setDayType] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +123,7 @@ export default function AttendanceSettlementPage() {
   }, [employees]);
 
   const filteredRows = useMemo(() => {
+    if (settlementStatusFilter !== "all" && settlementStatusFilter !== settlementStatus) return [];
     return rows.filter((row) => {
       if (dayType && row.day_type !== dayType) return false;
       if (dataType === "worked") return row.worked_minutes > 0;
@@ -83,7 +133,7 @@ export default function AttendanceSettlementPage() {
       if (dataType === "anomaly") return !!row.anomaly;
       return true;
     });
-  }, [dataType, dayType, rows]);
+  }, [dataType, dayType, rows, settlementStatus, settlementStatusFilter]);
 
   const summary = useMemo(() => {
     return filteredRows.reduce(
@@ -92,9 +142,10 @@ export default function AttendanceSettlementPage() {
         total.late += row.late_minutes;
         total.overtime += row.overtime_minutes;
         total.night += row.night_minutes;
+        if (row.anomaly) total.anomaly += 1;
         return total;
       },
-      { worked: 0, late: 0, overtime: 0, night: 0 },
+      { worked: 0, late: 0, overtime: 0, night: 0, anomaly: 0 },
     );
   }, [filteredRows]);
 
@@ -120,10 +171,14 @@ export default function AttendanceSettlementPage() {
     void load();
   }, [load]);
 
-  function applyPayrollMonth() {
+  function applySettings() {
     const range = monthRange(payrollMonth);
+    const nextTo = cutoffDate || range.end;
     setFrom(range.start);
-    setTo(range.end);
+    setTo(nextTo);
+    setSettlementStatus("unsettled");
+    setTransferredAt(null);
+    setMessage(`已套用設定：${payrollMonth}，截止日 ${nextTo}`);
   }
 
   async function onSettle(event: FormEvent) {
@@ -132,6 +187,8 @@ export default function AttendanceSettlementPage() {
     setError(null);
     try {
       const res = await settleAttendance({ employeeId: employeeId || undefined, from, to });
+      setSettlementStatus("settled");
+      setTransferredAt(null);
       setMessage(`已結算 ${res.settled} 筆出勤日`);
       await load();
     } catch (err) {
@@ -139,20 +196,47 @@ export default function AttendanceSettlementPage() {
     }
   }
 
+  function downloadFilteredRows() {
+    downloadCsv(filteredRows, employeeName, {
+      payrollMonth,
+      dataType,
+      settlementStatus,
+      cutoffDate: to,
+      filenameSuffix: `${payrollMonth}-${dataType}`,
+    });
+  }
+
+  function transferAllRows() {
+    if (rows.length === 0) {
+      setError("沒有可拋轉資料，請先搜尋或執行結算");
+      return;
+    }
+    setError(null);
+    const nextTransferredAt = new Date().toLocaleString("zh-TW", { hour12: false });
+    setSettlementStatus("transferred");
+    setSettlementStatusFilter("all");
+    setTransferredAt(nextTransferredAt);
+    downloadCsv(rows, employeeName, {
+      payrollMonth,
+      dataType: "all",
+      settlementStatus: "transferred",
+      cutoffDate: to,
+      filenameSuffix: `${payrollMonth}-all-transfer`,
+    });
+    setMessage(`已全數拋轉 ${rows.length} 筆出勤日（${nextTransferredAt}）`);
+  }
+
   return (
     <>
-      <PageHeader title="結算作業" desc="依薪資月份結算出勤、遲到、加班、夜間與薪資拋轉檔" />
+      <PageHeader title="結算作業" desc="依薪資年月、資料類型、結算狀態與截止日完成設定、全數拋轉與下載" />
 
       <Card>
         <form onSubmit={onSettle} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-8">
             <div>
-              <label className={labelCls}>薪資月份</label>
+              <label className={labelCls}>薪資年月</label>
               <div className="flex gap-2">
                 <input type="month" className={inputCls} value={payrollMonth} onChange={(event) => setPayrollMonth(event.target.value)} />
-                <button type="button" onClick={applyPayrollMonth} className="rounded-md border px-3 text-sm">
-                  套用
-                </button>
               </div>
             </div>
             <div className="lg:col-span-2">
@@ -165,6 +249,10 @@ export default function AttendanceSettlementPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={labelCls}>截止日</label>
+              <input type="date" className={inputCls} value={cutoffDate} onChange={(event) => setCutoffDate(event.target.value)} />
             </div>
             <div>
               <label className={labelCls}>結算日期（起）</label>
@@ -186,22 +274,50 @@ export default function AttendanceSettlementPage() {
               </select>
             </div>
             <div>
+              <label className={labelCls}>結算狀態</label>
+              <select
+                className={inputCls}
+                value={settlementStatusFilter}
+                onChange={(event) => setSettlementStatusFilter(event.target.value as SettlementStatusFilter)}
+              >
+                <option value="all">全部</option>
+                <option value="unsettled">未結算</option>
+                <option value="settled">已結算</option>
+                <option value="transferred">已拋轉</option>
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>日別</label>
               <input className={inputCls} value={dayType} onChange={(event) => setDayType(event.target.value)} placeholder="例：workday" />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={applySettings} className="rounded-md border px-4 py-2 text-sm">
+              設定
+            </button>
             <PrimaryButton type="submit">執行結算</PrimaryButton>
             <button type="button" onClick={() => void load()} className="rounded-md border px-4 py-2 text-sm">
               搜尋
             </button>
             <button
               type="button"
-              onClick={() => downloadCsv(filteredRows, employeeName, payrollMonth)}
+              onClick={transferAllRows}
+              className="rounded-md border border-blue-300 px-4 py-2 text-sm font-medium text-blue-700"
+            >
+              全數拋轉
+            </button>
+            <button
+              type="button"
+              onClick={downloadFilteredRows}
               className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
             >
-              匯出薪資拋轉檔
+              下載
             </button>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            設定摘要：薪資年月 {payrollMonth} / 資料類型 {dataTypeLabels[dataType]} / 結算狀態{" "}
+            {settlementStatusLabels[settlementStatus]} / 截止日 {to}
+            {transferredAt ? ` / 全數拋轉 ${transferredAt}` : ""}
           </div>
           {message && <p className="text-sm text-green-600">{message}</p>}
           {error && <ErrorText>{error}</ErrorText>}
@@ -209,7 +325,15 @@ export default function AttendanceSettlementPage() {
       </Card>
 
       <Card>
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
+          <div className="rounded-xl bg-emerald-50 p-4">
+            <p className="text-xs text-emerald-600">結算狀態</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-700">{settlementStatusLabels[settlementStatus]}</p>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4">
+            <p className="text-xs text-amber-600">結算筆數</p>
+            <p className="mt-1 text-xl font-semibold text-amber-700">{filteredRows.length}</p>
+          </div>
           <div className="rounded-xl bg-slate-50 p-4">
             <p className="text-xs text-slate-500">工作時數</p>
             <p className="mt-1 text-xl font-semibold text-slate-900">{minutes(summary.worked)}</p>
@@ -225,6 +349,10 @@ export default function AttendanceSettlementPage() {
           <div className="rounded-xl bg-indigo-50 p-4">
             <p className="text-xs text-indigo-600">夜間</p>
             <p className="mt-1 text-xl font-semibold text-indigo-700">{minutes(summary.night)}</p>
+          </div>
+          <div className="rounded-xl bg-orange-50 p-4">
+            <p className="text-xs text-orange-600">異常</p>
+            <p className="mt-1 text-xl font-semibold text-orange-700">{summary.anomaly}</p>
           </div>
         </div>
 
