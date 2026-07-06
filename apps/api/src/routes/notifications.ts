@@ -2,7 +2,9 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import { requireAuth } from "../middleware/auth.js"
 import { requireTenant } from "../middleware/tenant.js"
+import { requireHrAdmin } from "../middleware/role.js"
 import { supabaseAdmin } from "../lib/supabase.js"
+import { deliverPendingNotifications } from "../services/notification-delivery.js"
 
 export const notificationsRouter = Router()
 
@@ -11,6 +13,10 @@ const SELECT_COLS =
 
 const listQuery = z.object({
   status: z.enum(["pending", "sent", "failed"]).optional(),
+})
+
+const deliverSchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
 })
 
 const HR_ROLES = ["hr_admin", "platform_admin"]
@@ -145,6 +151,28 @@ notificationsRouter.post(
         return
       }
       res.status(200).json({ id: updated.id, read: true })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+notificationsRouter.post(
+  "/notifications/deliver-pending",
+  requireAuth,
+  requireTenant,
+  requireHrAdmin,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = res.locals.tenantId as string
+    const parsed = deliverSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    try {
+      const result = await deliverPendingNotifications(parsed.data.limit, { tenantId })
+      res.status(200).json(result)
     } catch (err) {
       next(err)
     }

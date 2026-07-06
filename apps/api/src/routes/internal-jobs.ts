@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import { supabaseAdmin } from "../lib/supabase.js"
 import { settleAttendance } from "../services/settlement.js"
+import { deliverPendingNotifications } from "../services/notification-delivery.js"
 
 export const internalJobsRouter = Router()
 
@@ -9,6 +10,10 @@ const dateRe = /^\d{4}-\d{2}-\d{2}$/
 
 const dailySettleSchema = z.object({
   date: z.string().regex(dateRe).optional(),
+})
+
+const deliverNotificationsSchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
 })
 
 type DailySettleResult =
@@ -84,6 +89,25 @@ internalJobsRouter.post(
         failed: results.filter((item) => !item.ok).length,
         results,
       })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+internalJobsRouter.post(
+  "/internal/notifications/deliver-pending",
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!requireInternalToken(req, res)) return
+    const parsed = deliverNotificationsSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
+      return
+    }
+
+    try {
+      const result = await deliverPendingNotifications(parsed.data.limit)
+      res.status(200).json(result)
     } catch (err) {
       next(err)
     }

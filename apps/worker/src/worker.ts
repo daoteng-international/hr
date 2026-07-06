@@ -35,6 +35,11 @@ async function registerSchedulers() {
     { pattern: "0 2 * * *", tz: "Asia/Taipei" },
     { name: "daily-attendance-settle", data: {} },
   );
+  await attendanceQueue.upsertJobScheduler(
+    "deliver-pending-notifications",
+    { pattern: "*/5 * * * *", tz: "Asia/Taipei" },
+    { name: "deliver-pending-notifications", data: { limit: 50 } },
+  );
 
   attendanceWorker = new Worker(
     "attendance",
@@ -50,8 +55,17 @@ async function registerSchedulers() {
       }
 
       const baseUrl = apiUrl.replace(/\/$/, "");
-      const body = typeof job.data?.date === "string" ? { date: job.data.date } : {};
-      const response = await fetch(`${baseUrl}/internal/attendance/daily-settle`, {
+      const endpoint =
+        job.name === "deliver-pending-notifications"
+          ? "/internal/notifications/deliver-pending"
+          : "/internal/attendance/daily-settle";
+      const body =
+        job.name === "deliver-pending-notifications"
+          ? { limit: typeof job.data?.limit === "number" ? job.data.limit : 50 }
+          : typeof job.data?.date === "string"
+            ? { date: job.data.date }
+            : {};
+      const response = await fetch(`${baseUrl}${endpoint}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -67,9 +81,9 @@ async function registerSchedulers() {
         /* keep text payload */
       }
       if (!response.ok) {
-        throw new Error(`daily settle API failed ${response.status}: ${text.slice(0, 500)}`);
+        throw new Error(`${job.name} API failed ${response.status}: ${text.slice(0, 500)}`);
       }
-      logger.info({ jobId: job.id, name: job.name, result: payload }, "daily-attendance-settle completed");
+      logger.info({ jobId: job.id, name: job.name, result: payload }, `${job.name} completed`);
     },
     { connection: maybeRedis },
   );
@@ -81,7 +95,7 @@ async function registerSchedulers() {
     logger.error({ queue: "attendance", err: err.message }, "worker error"),
   );
 
-  logger.info("Job scheduler registered (daily-attendance-settle 02:00 Asia/Taipei)");
+  logger.info("Job schedulers registered (attendance daily, notifications every 5 minutes)");
 }
 
 // Minimal liveness endpoint so Railway's shared /health check passes for the
@@ -104,7 +118,7 @@ if (process.env.REDIS_URL) {
     logger.error({ err: err.message }, "failed to register job schedulers");
     process.exit(1);
   });
-  logger.info("Worker process started (attendance)");
+  logger.info("Worker process started (attendance + notifications)");
 } else {
   // Skeleton mode: no broker, so we only run the health server. This keeps the
   // worker bootable on a bare laptop without Redis.

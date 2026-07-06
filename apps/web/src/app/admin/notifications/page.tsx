@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Empty, ErrorText, PageHeader } from "@/components/admin-ui";
 import {
+  deliverPendingNotifications,
   getNotifications,
   markNotificationRead,
   type NotificationItem,
@@ -43,6 +44,8 @@ export default function AdminNotificationsPage() {
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [loading, setLoading] = useState(true);
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [delivering, setDelivering] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (status = statusFilter) => {
@@ -89,6 +92,23 @@ export default function AdminNotificationsPage() {
     }
   }
 
+  async function deliverPending() {
+    setDelivering(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await deliverPendingNotifications(50);
+      setMessage(
+        `投遞完成：掃描 ${result.scanned}、送出 ${result.delivered}、失敗 ${result.failed}、略過 ${result.skipped}`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "投遞失敗");
+    } finally {
+      setDelivering(false);
+    }
+  }
+
   return (
     <>
       <PageHeader title="通知中心" desc="全租戶通知佇列、未讀狀態與 Apollo LinkUp 提醒追蹤。" />
@@ -128,8 +148,17 @@ export default function AdminNotificationsPage() {
           <button type="button" onClick={() => void load()} className="text-sm text-gray-500 hover:underline">
             重新整理
           </button>
+          <button
+            type="button"
+            onClick={() => void deliverPending()}
+            disabled={delivering}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 disabled:opacity-50"
+          >
+            {delivering ? "投遞中…" : "投遞待處理通知"}
+          </button>
         </div>
 
+        {message && <p className="mb-3 text-sm text-green-700">{message}</p>}
         {error && <div className="mb-3"><ErrorText>{error}</ErrorText></div>}
         {loading ? (
           <Empty>載入中…</Empty>

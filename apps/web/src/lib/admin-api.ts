@@ -695,6 +695,25 @@ export function markNotificationRead(id: string) {
   });
 }
 
+export function deliverPendingNotifications(limit = 50) {
+  return apiFetch<{
+    scanned: number;
+    delivered: number;
+    failed: number;
+    skipped: number;
+    results: Array<{
+      id: string;
+      channels: Array<"email" | "line">;
+      sent: Array<"email" | "line">;
+      failed: Array<{ channel: "email" | "line"; error: string }>;
+      skipped?: string;
+    }>;
+  }>("/notifications/deliver-pending", {
+    method: "POST",
+    body: JSON.stringify({ limit }),
+  });
+}
+
 /* --------------------------------------------------------- leave-types ----- */
 
 export interface LeaveType {

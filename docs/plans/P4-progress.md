@@ -35,8 +35,14 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
   - `app.ts` 掛載 detectionRouter、notificationsRouter。
 - [ ] **F2 AI 自動報表**（需 Gemini）：以 Gemini 把 F1 偵測結果 + P3 報表彙整成自然語言摘要 / 月報。
 - [ ] **F3 AI 問答**（需 Gemini）：HR/員工對自家差勤資料的自然語言問答（檢索 + Gemini 生成）。
-- [ ] **F4 LINE / Email 投遞**（需憑證）：把 notifications 佇列 pending → 實際送出（LINE Messaging API / SMTP），
-      送出後標 sent/failed + sent_at；接續 F1 已備好的投遞接口。
+- [x] **F4 LINE / Email 投遞**（需憑證）：
+      `deliverPendingNotifications` 會把 `channel=email|line` 的 pending 通知實際送出並標
+      sent/failed + sent_at；`channel=inapp` 可透過 `payload.channels` 或
+      `NOTIFICATION_DEFAULT_CHANNELS=email,line` 額外外送且保留未讀狀態。Admin
+      `/admin/notifications` 可手動投遞；worker 每 5 分鐘呼叫
+      `/internal/notifications/deliver-pending`。Email 使用 Resend
+      (`RESEND_API_KEY`, `NOTIFICATION_EMAIL_FROM`)，LINE 使用 Messaging API
+      (`LINE_CHANNEL_ACCESS_TOKEN`，recipient 由 payload.lineUserId / line_user_id 指定)。
 - [ ] **F5 worker cron 排程**：定時呼叫 scanMissingPunches / detectAnomalies（@hr/worker），自動產生佇列。
 
 ## 進度日誌
