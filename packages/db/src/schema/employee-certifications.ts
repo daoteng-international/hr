@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, date, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, uuid, text, date, timestamp, integer } from "drizzle-orm/pg-core"
 import { tenants } from "./tenants"
 import { employees } from "./employees"
 
@@ -15,5 +15,9 @@ export const employeeCertifications = pgTable("employee_certifications", {
   issuer: text("issuer"),
   issuedDate: date("issued_date"),
   expiryDate: date("expiry_date"),
+  attachmentFileName: text("attachment_file_name"),
+  attachmentStoragePath: text("attachment_storage_path"),
+  attachmentSizeBytes: integer("attachment_size_bytes"),
+  attachmentContentType: text("attachment_content_type"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })

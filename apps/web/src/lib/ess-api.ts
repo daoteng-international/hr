@@ -241,6 +241,8 @@ export function cancelRequest(id: string) {
 
 // DB-shape (snake_case) of the 1:1 profile as returned by GET — Apollo 基本+通訊.
 export interface EmployeeProfile {
+  first_name: string | null;
+  last_name: string | null;
   english_name: string | null;
   nationality: string | null;
   id_type: string | null;
@@ -256,6 +258,11 @@ export interface EmployeeProfile {
   birthday: string | null;
   gender: string | null;
   marital_status: string | null;
+  photo_file_name: string | null;
+  photo_storage_path: string | null;
+  photo_size_bytes: number | null;
+  photo_content_type: string | null;
+  photo_url: string | null;
   phone: string | null;
   phone_mobile2: string | null;
   phone_landline: string | null;
@@ -271,6 +278,8 @@ export interface EmployeeProfile {
 
 // PUT body (camelCase, partial: absent = untouched, null = clear).
 export interface SaveProfileBody {
+  firstName?: string | null;
+  lastName?: string | null;
   englishName?: string | null;
   nationality?: string | null;
   idType?: string | null;
@@ -311,6 +320,11 @@ export interface Education {
   region: string | null;
   start_date: string | null;
   end_date: string | null;
+  proof_file_name: string | null;
+  proof_storage_path: string | null;
+  proof_size_bytes: number | null;
+  proof_content_type: string | null;
+  proof_url: string | null;
 }
 
 export interface JobHistoryEntry {
@@ -329,6 +343,11 @@ export interface Certification {
   issuer: string | null;
   issued_date: string | null;
   expiry_date: string | null;
+  attachment_file_name: string | null;
+  attachment_storage_path: string | null;
+  attachment_size_bytes: number | null;
+  attachment_content_type: string | null;
+  attachment_url: string | null;
 }
 
 export interface WorkHistory {
@@ -375,6 +394,34 @@ export function saveProfile(empId: string, body: SaveProfileBody) {
   });
 }
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("讀取檔案失敗"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function uploadBody(file: File, dataBase64: string) {
+  return JSON.stringify({
+    fileName: file.name,
+    contentType: file.type || "application/octet-stream",
+    dataBase64,
+  });
+}
+
+export async function uploadProfilePhoto(empId: string, file: File) {
+  return apiFetch<{ id: string; photoUrl: string | null }>(`/employees/${empId}/profile/photo`, {
+    method: "POST",
+    body: uploadBody(file, await fileToBase64(file)),
+  });
+}
+
+export function deleteProfilePhoto(empId: string) {
+  return apiFetch<{ id: string }>(`/employees/${empId}/profile/photo`, { method: "DELETE" });
+}
+
 export function addEducation(
   empId: string,
   body: {
@@ -396,6 +443,17 @@ export function addEducation(
   });
 }
 
+export async function uploadEducationAttachment(id: string, file: File) {
+  return apiFetch<{ id: string; proofUrl: string | null }>(`/educations/${id}/attachment`, {
+    method: "POST",
+    body: uploadBody(file, await fileToBase64(file)),
+  });
+}
+
+export function deleteEducationAttachment(id: string) {
+  return apiFetch<{ id: string }>(`/educations/${id}/attachment`, { method: "DELETE" });
+}
+
 export function addCertification(
   empId: string,
   body: { name: string; issuer?: string; issuedDate?: string; expiryDate?: string },
@@ -404,6 +462,17 @@ export function addCertification(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export async function uploadCertificationAttachment(id: string, file: File) {
+  return apiFetch<{ id: string; attachmentUrl: string | null }>(`/certifications/${id}/attachment`, {
+    method: "POST",
+    body: uploadBody(file, await fileToBase64(file)),
+  });
+}
+
+export function deleteCertificationAttachment(id: string) {
+  return apiFetch<{ id: string }>(`/certifications/${id}/attachment`, { method: "DELETE" });
 }
 
 export function addWorkHistory(

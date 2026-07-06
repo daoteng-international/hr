@@ -139,6 +139,8 @@ export function deactivateEmployee(id: string) {
 /* ---------------------------------------------------- employee profile ----- */
 
 export interface EmployeeProfile {
+  first_name: string | null;
+  last_name: string | null;
   english_name: string | null;
   nationality: string | null;
   id_type: string | null;
@@ -154,6 +156,11 @@ export interface EmployeeProfile {
   birthday: string | null;
   gender: string | null;
   marital_status: string | null;
+  photo_file_name: string | null;
+  photo_storage_path: string | null;
+  photo_size_bytes: number | null;
+  photo_content_type: string | null;
+  photo_url: string | null;
   phone: string | null;
   phone_mobile2: string | null;
   phone_landline: string | null;
@@ -168,6 +175,8 @@ export interface EmployeeProfile {
 }
 
 export interface SaveProfileBody {
+  firstName?: string | null;
+  lastName?: string | null;
   englishName?: string | null;
   nationality?: string | null;
   idType?: string | null;
@@ -208,6 +217,11 @@ export interface Education {
   region: string | null;
   start_date: string | null;
   end_date: string | null;
+  proof_file_name: string | null;
+  proof_storage_path: string | null;
+  proof_size_bytes: number | null;
+  proof_content_type: string | null;
+  proof_url: string | null;
 }
 
 export interface Certification {
@@ -216,6 +230,11 @@ export interface Certification {
   issuer: string | null;
   issued_date: string | null;
   expiry_date: string | null;
+  attachment_file_name: string | null;
+  attachment_storage_path: string | null;
+  attachment_size_bytes: number | null;
+  attachment_content_type: string | null;
+  attachment_url: string | null;
 }
 
 export interface WorkHistory {
@@ -272,6 +291,34 @@ export function saveEmployeeProfile(employeeId: string, body: SaveProfileBody) {
   });
 }
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("讀取檔案失敗"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function uploadBody(file: File, dataBase64: string) {
+  return JSON.stringify({
+    fileName: file.name,
+    contentType: file.type || "application/octet-stream",
+    dataBase64,
+  });
+}
+
+export async function uploadEmployeeProfilePhoto(employeeId: string, file: File) {
+  return apiFetch<{ id: string; photoUrl: string | null }>(`/employees/${employeeId}/profile/photo`, {
+    method: "POST",
+    body: uploadBody(file, await fileToBase64(file)),
+  });
+}
+
+export function deleteEmployeeProfilePhoto(employeeId: string) {
+  return apiFetch<{ id: string }>(`/employees/${employeeId}/profile/photo`, { method: "DELETE" });
+}
+
 export function addEmployeeEducation(
   employeeId: string,
   body: {
@@ -293,6 +340,17 @@ export function addEmployeeEducation(
   });
 }
 
+export async function uploadEmployeeEducationAttachment(id: string, file: File) {
+  return apiFetch<{ id: string; proofUrl: string | null }>(`/educations/${id}/attachment`, {
+    method: "POST",
+    body: uploadBody(file, await fileToBase64(file)),
+  });
+}
+
+export function deleteEmployeeEducationAttachment(id: string) {
+  return apiFetch<{ id: string }>(`/educations/${id}/attachment`, { method: "DELETE" });
+}
+
 export function addEmployeeCertification(
   employeeId: string,
   body: { name: string; issuer?: string; issuedDate?: string; expiryDate?: string },
@@ -301,6 +359,17 @@ export function addEmployeeCertification(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export async function uploadEmployeeCertificationAttachment(id: string, file: File) {
+  return apiFetch<{ id: string; attachmentUrl: string | null }>(`/certifications/${id}/attachment`, {
+    method: "POST",
+    body: uploadBody(file, await fileToBase64(file)),
+  });
+}
+
+export function deleteEmployeeCertificationAttachment(id: string) {
+  return apiFetch<{ id: string }>(`/certifications/${id}/attachment`, { method: "DELETE" });
 }
 
 export function addEmployeeWorkHistory(

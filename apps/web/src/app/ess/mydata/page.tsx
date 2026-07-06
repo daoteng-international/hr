@@ -9,12 +9,18 @@ import {
   isAdminRole,
   getProfile,
   saveProfile,
+  uploadProfilePhoto,
+  deleteProfilePhoto,
   addEducation,
   addCertification,
   addWorkHistory,
   deleteEducation,
   deleteCertification,
   deleteWorkHistory,
+  uploadEducationAttachment,
+  deleteEducationAttachment,
+  uploadCertificationAttachment,
+  deleteCertificationAttachment,
   type Branding,
   type ProfileAggregate,
   type SaveProfileBody,
@@ -30,6 +36,8 @@ type Tab = (typeof TABS)[number];
 
 // 基本資料 fields (Apollo field-for-field; key = SaveProfileBody camelCase).
 const BASIC_FIELDS: { key: keyof SaveProfileBody; label: string; type?: "date" }[] = [
+  { key: "lastName", label: "姓" },
+  { key: "firstName", label: "名" },
   { key: "englishName", label: "英文姓名" },
   { key: "nationality", label: "國籍" },
   { key: "gender", label: "性別" },
@@ -63,6 +71,8 @@ const CONTACT_FIELDS: { key: keyof SaveProfileBody; label: string; type?: "date"
 
 // GET returns snake_case; map camelCase form key -> snake_case profile key.
 const SNAKE: Record<string, string> = {
+  firstName: "first_name",
+  lastName: "last_name",
   englishName: "english_name",
   nationality: "nationality",
   idType: "id_type",
@@ -171,6 +181,7 @@ function MyDataInner() {
 
   // 學歷 add-form state (Apollo fields)
   const [showEduForm, setShowEduForm] = useState(false);
+  const [eduProofFile, setEduProofFile] = useState<File | null>(null);
   const [edu, setEdu] = useState({
     school: "",
     degree: "",
@@ -184,6 +195,7 @@ function MyDataInner() {
     isHighest: false,
   });
   const [showCertForm, setShowCertForm] = useState(false);
+  const [certAttachmentFile, setCertAttachmentFile] = useState<File | null>(null);
   const [cert, setCert] = useState({
     name: "",
     issuer: "",
@@ -225,7 +237,7 @@ function MyDataInner() {
   async function submitEdu(e: FormEvent) {
     e.preventDefault();
     if (!empId || !edu.school.trim()) return;
-    await addEducation(empId, {
+    const created = await addEducation(empId, {
       school: edu.school.trim(),
       isHighest: edu.isHighest,
       majorCategory: edu.majorCategory.trim() || undefined,
@@ -237,7 +249,9 @@ function MyDataInner() {
       startDate: edu.startDate || undefined,
       endDate: edu.endDate || undefined,
     });
+    if (eduProofFile) await uploadEducationAttachment(created.id, eduProofFile);
     setShowEduForm(false);
+    setEduProofFile(null);
     setEdu({ school: "", degree: "", majorCategory: "", major: "", studyType: "日間部", studyStatus: "畢業", region: "", startDate: "", endDate: "", isHighest: false });
     await load(empId);
   }
@@ -246,14 +260,28 @@ function MyDataInner() {
     e.preventDefault();
     if (!empId) return;
     if (!cert.name.trim()) return;
-    await addCertification(empId, {
+    const created = await addCertification(empId, {
       name: cert.name.trim(),
       issuer: cert.issuer.trim() || undefined,
       issuedDate: cert.issuedDate || undefined,
       expiryDate: cert.expiryDate || undefined,
     });
+    if (certAttachmentFile) await uploadCertificationAttachment(created.id, certAttachmentFile);
     setShowCertForm(false);
+    setCertAttachmentFile(null);
     setCert({ name: "", issuer: "", issuedDate: "", expiryDate: "" });
+    await load(empId);
+  }
+
+  async function onPhotoFile(file: File | null) {
+    if (!empId || !file) return;
+    await uploadProfilePhoto(empId, file);
+    await load(empId);
+  }
+
+  async function removePhoto() {
+    if (!empId) return;
+    await deleteProfilePhoto(empId);
     await load(empId);
   }
 
@@ -308,12 +336,35 @@ function MyDataInner() {
 
             {tab === "基本資料" && empId && (
               <>
-                <dl className="mb-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                  <dt className="text-gray-500">姓名</dt>
-                  <dd className="font-medium">{data.basic.name}</dd>
-                  <dt className="text-gray-500">員工編號</dt>
-                  <dd>{data.basic.emp_no ?? "—"}</dd>
-                </dl>
+                <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl bg-gray-50 p-4">
+                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white text-lg font-semibold text-gray-500 ring-1 ring-gray-200">
+                    {data.profile?.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={data.profile.photo_url} alt="員工照片" className="h-full w-full object-cover" />
+                    ) : (
+                      data.basic.name.slice(0, 1)
+                    )}
+                  </div>
+                  <dl className="grid flex-1 grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                    <dt className="text-gray-500">姓名</dt>
+                    <dd className="font-medium">{data.basic.name}</dd>
+                    <dt className="text-gray-500">員工編號</dt>
+                    <dd>{data.basic.emp_no ?? "—"}</dd>
+                    <dt className="text-gray-500">照片</dt>
+                    <dd>{data.profile?.photo_file_name ?? "尚未上傳"}</dd>
+                  </dl>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700">
+                      上傳照片
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => void onPhotoFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                    {data.profile?.photo_url && (
+                      <button type="button" onClick={() => void removePhoto()} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-600">
+                        刪除照片
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <ProfileFieldsForm empId={empId} data={data} fields={BASIC_FIELDS} onSaved={() => load(empId)} />
               </>
             )}
@@ -378,6 +429,10 @@ function MyDataInner() {
                           <label className={label}>學校所在地區</label>
                           <input className={input} value={edu.region} onChange={(e) => setEdu({ ...edu, region: e.target.value })} />
                         </div>
+                        <div>
+                          <label className={label}>證明文件</label>
+                          <input type="file" className={input} onChange={(e) => setEduProofFile(e.target.files?.[0] ?? null)} />
+                        </div>
                       </div>
                       <label className="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" checked={edu.isHighest} onChange={(e) => setEdu({ ...edu, isHighest: e.target.checked })} />
@@ -395,10 +450,18 @@ function MyDataInner() {
                           <span className="font-medium text-gray-800">{e.school}</span>{" "}
                           <span className="text-gray-500">{[e.degree, e.major, e.study_status].filter(Boolean).join(" · ")}</span>
                           {e.is_highest && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">最高學歷</span>}
+                          {e.proof_url && (
+                            <a className="ml-2 text-xs font-medium" style={{ color: "var(--brand)" }} href={e.proof_url} target="_blank" rel="noreferrer">
+                              證明文件
+                            </a>
+                          )}
                         </span>
-                        <button onClick={() => removeItem("edu", e.id)} className="text-red-600 hover:underline">
-                          刪除
-                        </button>
+                        <div className="flex gap-2">
+                          {e.proof_url && <button onClick={() => empId && deleteEducationAttachment(e.id).then(() => load(empId))} className="text-gray-500 hover:underline">刪附件</button>}
+                          <button onClick={() => removeItem("edu", e.id)} className="text-red-600 hover:underline">
+                            刪除
+                          </button>
+                        </div>
                       </li>
                     ))}
                     {data.educations.length === 0 && !showEduForm && <li className="py-2 text-sm text-gray-400">尚無學歷資料</li>}
@@ -430,6 +493,10 @@ function MyDataInner() {
                           <label className={label}>到期日期</label>
                           <input type="date" className={input} value={cert.expiryDate} onChange={(e) => setCert({ ...cert, expiryDate: e.target.value })} />
                         </div>
+                        <div>
+                          <label className={label}>附件</label>
+                          <input type="file" className={input} onChange={(e) => setCertAttachmentFile(e.target.files?.[0] ?? null)} />
+                        </div>
                       </div>
                       <button type="submit" className="rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: "var(--brand)" }}>
                         新增
@@ -444,10 +511,18 @@ function MyDataInner() {
                           <span className="text-gray-500">
                             {[c.issuer, [c.issued_date, c.expiry_date].filter(Boolean).join(" ~ ")].filter(Boolean).join(" · ")}
                           </span>
+                          {c.attachment_url && (
+                            <a className="ml-2 text-xs font-medium" style={{ color: "var(--brand)" }} href={c.attachment_url} target="_blank" rel="noreferrer">
+                              附件
+                            </a>
+                          )}
                         </span>
-                        <button onClick={() => removeItem("cert", c.id)} className="text-red-600 hover:underline">
-                          刪除
-                        </button>
+                        <div className="flex gap-2">
+                          {c.attachment_url && <button onClick={() => empId && deleteCertificationAttachment(c.id).then(() => load(empId))} className="text-gray-500 hover:underline">刪附件</button>}
+                          <button onClick={() => removeItem("cert", c.id)} className="text-red-600 hover:underline">
+                            刪除
+                          </button>
+                        </div>
                       </li>
                     ))}
                     {data.certifications.length === 0 && <li className="py-2 text-sm text-gray-400">尚無證照資料</li>}

@@ -9,13 +9,19 @@ import {
   addEmployeeWorkHistory,
   deactivateEmployee,
   deleteEmployeeCertification,
+  deleteEmployeeCertificationAttachment,
   deleteEmployeeEducation,
+  deleteEmployeeEducationAttachment,
+  deleteEmployeeProfilePhoto,
   deleteEmployeeWorkHistory,
   getDepartments,
   getEmployeeProfile,
   getEmployees,
   inviteEmployee,
   saveEmployeeProfile,
+  uploadEmployeeCertificationAttachment,
+  uploadEmployeeEducationAttachment,
+  uploadEmployeeProfilePhoto,
   updateEmployee,
   type Department,
   type Employee,
@@ -37,6 +43,8 @@ const EMPLOYMENT_TYPES = [
 ];
 
 const PROFILE_FIELDS: { key: keyof SaveProfileBody; label: string; type?: "date"; group: "basic" | "contact" }[] = [
+  { key: "lastName", label: "姓", group: "basic" },
+  { key: "firstName", label: "名", group: "basic" },
   { key: "englishName", label: "英文姓名", group: "basic" },
   { key: "nationality", label: "國籍", group: "basic" },
   { key: "gender", label: "性別", group: "basic" },
@@ -65,6 +73,8 @@ const PROFILE_FIELDS: { key: keyof SaveProfileBody; label: string; type?: "date"
 ];
 
 const SNAKE: Record<keyof SaveProfileBody, string> = {
+  firstName: "first_name",
+  lastName: "last_name",
   englishName: "english_name",
   nationality: "nationality",
   idType: "id_type",
@@ -160,7 +170,9 @@ export default function EmployeesPage() {
     endDate: "",
     isHighest: false,
   });
+  const [eduProofFile, setEduProofFile] = useState<File | null>(null);
   const [certDraft, setCertDraft] = useState({ name: "", issuer: "", issuedDate: "", expiryDate: "" });
+  const [certAttachmentFile, setCertAttachmentFile] = useState<File | null>(null);
   const [workDraft, setWorkDraft] = useState({ company: "", title: "", startDate: "", endDate: "", description: "" });
   const [jobDraft, setJobDraft] = useState({
     effectiveDate: "",
@@ -280,7 +292,7 @@ export default function EmployeesPage() {
     event.preventDefault();
     if (!profileEmpId) return;
     if (!eduDraft.school.trim()) return;
-    await addEmployeeEducation(profileEmpId, {
+    const created = await addEmployeeEducation(profileEmpId, {
       school: eduDraft.school.trim(),
       isHighest: eduDraft.isHighest,
       majorCategory: eduDraft.majorCategory.trim() || undefined,
@@ -292,7 +304,9 @@ export default function EmployeesPage() {
       startDate: eduDraft.startDate || undefined,
       endDate: eduDraft.endDate || undefined,
     });
+    if (eduProofFile) await uploadEmployeeEducationAttachment(created.id, eduProofFile);
     setEduDraft({ school: "", degree: "", majorCategory: "", major: "", studyType: "日間部", studyStatus: "畢業", region: "", startDate: "", endDate: "", isHighest: false });
+    setEduProofFile(null);
     setShowEduForm(false);
     await loadProfile(profileEmpId);
   }
@@ -301,14 +315,28 @@ export default function EmployeesPage() {
     event.preventDefault();
     if (!profileEmpId) return;
     if (!certDraft.name.trim()) return;
-    await addEmployeeCertification(profileEmpId, {
+    const created = await addEmployeeCertification(profileEmpId, {
       name: certDraft.name.trim(),
       issuer: certDraft.issuer.trim() || undefined,
       issuedDate: certDraft.issuedDate || undefined,
       expiryDate: certDraft.expiryDate || undefined,
     });
+    if (certAttachmentFile) await uploadEmployeeCertificationAttachment(created.id, certAttachmentFile);
     setCertDraft({ name: "", issuer: "", issuedDate: "", expiryDate: "" });
+    setCertAttachmentFile(null);
     setShowCertForm(false);
+    await loadProfile(profileEmpId);
+  }
+
+  async function onProfilePhotoFile(file: File | null) {
+    if (!profileEmpId || !file) return;
+    await uploadEmployeeProfilePhoto(profileEmpId, file);
+    await loadProfile(profileEmpId);
+  }
+
+  async function removeProfilePhoto() {
+    if (!profileEmpId) return;
+    await deleteEmployeeProfilePhoto(profileEmpId);
     await loadProfile(profileEmpId);
   }
 
@@ -534,6 +562,32 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center gap-4 rounded-xl bg-slate-50 p-4">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white text-lg font-semibold text-slate-500 ring-1 ring-slate-200">
+                  {profile.profile?.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={profile.profile.photo_url} alt="員工照片" className="h-full w-full object-cover" />
+                  ) : (
+                    (selectedEmployee?.name ?? profile.basic.name).slice(0, 1)
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-700">員工照片</p>
+                  <p className="mt-1 text-xs text-slate-500">{profile.profile?.photo_file_name ?? "尚未上傳"}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="cursor-pointer rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700">
+                    上傳照片
+                    <input type="file" accept="image/*" className="hidden" onChange={(event) => void onProfilePhotoFile(event.target.files?.[0] ?? null)} />
+                  </label>
+                  {profile.profile?.photo_url && (
+                    <button type="button" onClick={() => void removeProfilePhoto()} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-600">
+                      刪除照片
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <form onSubmit={saveProfileFields} className="space-y-4">
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setProfileTab("basic")} className={`rounded-full px-4 py-2 text-sm ${profileTab === "basic" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>基本資料</button>
@@ -583,6 +637,7 @@ export default function EmployeesPage() {
                         <input type="date" className={inputCls} value={eduDraft.startDate} onChange={(event) => setEduDraft((draft) => ({ ...draft, startDate: event.target.value }))} />
                         <input type="date" className={inputCls} value={eduDraft.endDate} onChange={(event) => setEduDraft((draft) => ({ ...draft, endDate: event.target.value }))} />
                         <input className={inputCls} value={eduDraft.region} onChange={(event) => setEduDraft((draft) => ({ ...draft, region: event.target.value }))} placeholder="學校所在地區" />
+                        <input type="file" className={inputCls} onChange={(event) => setEduProofFile(event.target.files?.[0] ?? null)} />
                         <label className="flex items-center gap-2 text-sm text-gray-600">
                           <input type="checkbox" checked={eduDraft.isHighest} onChange={(event) => setEduDraft((draft) => ({ ...draft, isHighest: event.target.checked }))} />
                           最高學歷
@@ -594,8 +649,14 @@ export default function EmployeesPage() {
                   <ul className="divide-y divide-gray-100 text-sm">
                     {profile.educations.map((item) => (
                       <li key={item.id} className="flex justify-between gap-3 py-2">
-                        <span>{item.school}｜{item.degree ?? "—"}｜{item.major_category ?? "—"}｜{item.major ?? "—"}｜{item.study_type ?? "—"}｜{item.study_status ?? "—"}｜{item.start_date ?? "—"} → {item.end_date ?? "—"}｜{item.region ?? "—"}{item.is_highest ? "｜最高學歷" : ""}</span>
-                        <button onClick={() => deleteEmployeeEducation(item.id).then(() => loadProfile(profileEmpId))} className="text-red-600">刪除</button>
+                        <span>
+                          {item.school}｜{item.degree ?? "—"}｜{item.major_category ?? "—"}｜{item.major ?? "—"}｜{item.study_type ?? "—"}｜{item.study_status ?? "—"}｜{item.start_date ?? "—"} → {item.end_date ?? "—"}｜{item.region ?? "—"}{item.is_highest ? "｜最高學歷" : ""}
+                          {item.proof_url && <a href={item.proof_url} target="_blank" rel="noreferrer" className="ml-2 font-medium" style={{ color: "var(--brand)" }}>證明文件</a>}
+                        </span>
+                        <span className="flex gap-2">
+                          {item.proof_url && <button onClick={() => deleteEmployeeEducationAttachment(item.id).then(() => loadProfile(profileEmpId))} className="text-gray-500">刪附件</button>}
+                          <button onClick={() => deleteEmployeeEducation(item.id).then(() => loadProfile(profileEmpId))} className="text-red-600">刪除</button>
+                        </span>
                       </li>
                     ))}
                     {profile.educations.length === 0 && <li className="py-2 text-gray-400">無</li>}
@@ -614,14 +675,21 @@ export default function EmployeesPage() {
                       <input className={inputCls} value={certDraft.issuer} onChange={(event) => setCertDraft((draft) => ({ ...draft, issuer: event.target.value }))} placeholder="發證單位" />
                       <input type="date" className={inputCls} value={certDraft.issuedDate} onChange={(event) => setCertDraft((draft) => ({ ...draft, issuedDate: event.target.value }))} />
                       <input type="date" className={inputCls} value={certDraft.expiryDate} onChange={(event) => setCertDraft((draft) => ({ ...draft, expiryDate: event.target.value }))} />
+                      <input type="file" className={inputCls} onChange={(event) => setCertAttachmentFile(event.target.files?.[0] ?? null)} />
                       <button type="submit" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ color: "var(--brand)" }}>新增證照</button>
                     </form>
                   )}
                   <ul className="divide-y divide-gray-100 text-sm">
                     {profile.certifications.map((item) => (
                       <li key={item.id} className="flex justify-between gap-3 py-2">
-                        <span>{item.name}｜{item.issuer ?? "—"}｜{item.issued_date ?? "—"} → {item.expiry_date ?? "—"}</span>
-                        <button onClick={() => deleteEmployeeCertification(item.id).then(() => loadProfile(profileEmpId))} className="text-red-600">刪除</button>
+                        <span>
+                          {item.name}｜{item.issuer ?? "—"}｜{item.issued_date ?? "—"} → {item.expiry_date ?? "—"}
+                          {item.attachment_url && <a href={item.attachment_url} target="_blank" rel="noreferrer" className="ml-2 font-medium" style={{ color: "var(--brand)" }}>附件</a>}
+                        </span>
+                        <span className="flex gap-2">
+                          {item.attachment_url && <button onClick={() => deleteEmployeeCertificationAttachment(item.id).then(() => loadProfile(profileEmpId))} className="text-gray-500">刪附件</button>}
+                          <button onClick={() => deleteEmployeeCertification(item.id).then(() => loadProfile(profileEmpId))} className="text-red-600">刪除</button>
+                        </span>
                       </li>
                     ))}
                     {profile.certifications.length === 0 && <li className="py-2 text-gray-400">無</li>}

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, date, boolean, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, uuid, text, date, boolean, timestamp, integer } from "drizzle-orm/pg-core"
 import { tenants } from "./tenants"
 import { employees } from "./employees"
 
@@ -27,5 +27,9 @@ export const employeeEducations = pgTable("employee_educations", {
   region: text("region"),
   startDate: date("start_date"),
   endDate: date("end_date"),
+  proofFileName: text("proof_file_name"),
+  proofStoragePath: text("proof_storage_path"),
+  proofSizeBytes: integer("proof_size_bytes"),
+  proofContentType: text("proof_content_type"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })
