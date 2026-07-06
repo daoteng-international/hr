@@ -5,7 +5,7 @@
     "buildCommand": "npm run build -w @hr/rules && npm run build -w @hr/api"
   },
   "deploy": {
-    "startCommand": "npm run start -w @hr/api",
+    "startCommand": "sh -c 'if [ -n \"$DATABASE_URL\" ]; then npm run db:migrate; else echo \"DATABASE_URL missing, skipping db:migrate\"; fi; npm run start -w @hr/api'",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE"
