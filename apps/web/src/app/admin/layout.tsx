@@ -12,6 +12,7 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] 
     title: "LinkUp",
     items: [
       { href: "/admin", label: "後台總覽" },
+      { href: "/admin/notifications", label: "通知中心" },
       { href: "/admin/announcements", label: "最新消息 / 公告" },
       { href: "/admin/company-space", label: "Company Space" },
     ],

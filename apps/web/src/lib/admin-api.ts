@@ -665,6 +665,36 @@ export function deleteAnnouncement(id: string) {
   return apiFetch<{ id: string }>(`/announcements/${id}`, { method: "DELETE" });
 }
 
+/* --------------------------------------------------------- notifications -- */
+
+export type NotificationStatus = "pending" | "sent" | "failed";
+
+export interface NotificationItem {
+  id: string;
+  tenant_id: string;
+  employee_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  channel: string;
+  status: NotificationStatus;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+  sent_at: string | null;
+}
+
+export function getNotifications(status?: NotificationStatus) {
+  const qs = status ? `?status=${status}` : "";
+  return apiFetch<{ notifications: NotificationItem[] }>(`/notifications${qs}`);
+}
+
+export function markNotificationRead(id: string) {
+  return apiFetch<{ id: string; read: true }>(`/notifications/${id}/read`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 /* --------------------------------------------------------- leave-types ----- */
 
 export interface LeaveType {

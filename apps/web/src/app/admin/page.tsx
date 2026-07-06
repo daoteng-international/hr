@@ -8,6 +8,7 @@ import { getBranding, getRequests } from "@/lib/admin-api";
 const LINKS: { href: string; label: string; desc: string; module: string }[] = [
   { href: "/admin/dashboard", label: "Dashboard", desc: "在職人數分析", module: "Dashboard" },
   { href: "/admin/company-space", label: "Company Space", desc: "權限項目、人員權限、站台設定", module: "LinkUp" },
+  { href: "/admin/notifications", label: "通知中心", desc: "全租戶通知、未讀與投遞狀態", module: "LinkUp" },
   { href: "/admin/announcements", label: "最新消息 / 公告", desc: "公司規章、部門公告、最新消息", module: "LinkUp" },
   { href: "/admin/onboarding", label: "Hire 報到管理", desc: "新進人員報到與建檔", module: "Foundation" },
   { href: "/admin/departments", label: "Org 單位", desc: "組織架構維護", module: "Foundation" },
