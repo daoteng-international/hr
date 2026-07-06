@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
+import { TenantBranding } from "@/components/TenantBranding";
 import "./globals.css";
 
 /**
- * White-label branding for the current tenant.
- *
- * There is no auth/tenant context yet (that lands in P1), so we inject a
- * sensible default brand. Once tenant resolution exists this becomes an async
- * fetch and the returned colour/title drive the whole shell.
+ * White-label branding. The server layout injects a safe default, then
+ * TenantBranding fetches GET /api/tenant/branding in the browser after the
+ * Supabase session is available and updates --brand + document.title globally.
  */
 interface Branding {
   brandColor: string;
@@ -15,11 +14,8 @@ interface Branding {
 }
 
 function getBranding(): Branding {
-  // TODO(P1): fetch GET /api/tenant/branding once auth/tenant context exists.
   return {
     brandColor: "#1F4E79",
-    // Default app name shown before the per-tenant branding loads client-side
-    // (the /ess pages re-fetch GET /api/tenant/branding and apply primaryColor).
     title: "HR 差勤系統",
   };
 }
@@ -43,7 +39,10 @@ export default function RootLayout({
 
   return (
     <html lang="zh-Hant" style={brandStyle}>
-      <body>{children}</body>
+      <body>
+        <TenantBranding />
+        {children}
+      </body>
     </html>
   );
 }
