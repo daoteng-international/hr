@@ -183,6 +183,21 @@ function MyDataInner() {
     endDate: "",
     isHighest: false,
   });
+  const [showCertForm, setShowCertForm] = useState(false);
+  const [cert, setCert] = useState({
+    name: "",
+    issuer: "",
+    issuedDate: "",
+    expiryDate: "",
+  });
+  const [showWorkForm, setShowWorkForm] = useState(false);
+  const [work, setWork] = useState({
+    company: "",
+    title: "",
+    startDate: "",
+    endDate: "",
+    description: "",
+  });
 
   const load = useCallback(async (id: string) => {
     setData(await getProfile(id));
@@ -227,21 +242,34 @@ function MyDataInner() {
     await load(empId);
   }
 
-  async function quickAddCert() {
+  async function submitCert(e: FormEvent) {
+    e.preventDefault();
     if (!empId) return;
-    const name = prompt("證照名稱？");
-    if (!name) return;
-    const issuer = prompt("發證單位？（可留空）") ?? undefined;
-    await addCertification(empId, { name, issuer: issuer || undefined });
+    if (!cert.name.trim()) return;
+    await addCertification(empId, {
+      name: cert.name.trim(),
+      issuer: cert.issuer.trim() || undefined,
+      issuedDate: cert.issuedDate || undefined,
+      expiryDate: cert.expiryDate || undefined,
+    });
+    setShowCertForm(false);
+    setCert({ name: "", issuer: "", issuedDate: "", expiryDate: "" });
     await load(empId);
   }
 
-  async function quickAddWork() {
+  async function submitWork(e: FormEvent) {
+    e.preventDefault();
     if (!empId) return;
-    const company = prompt("公司名稱？");
-    if (!company) return;
-    const title = prompt("職稱？（可留空）") ?? undefined;
-    await addWorkHistory(empId, { company, title: title || undefined });
+    if (!work.company.trim()) return;
+    await addWorkHistory(empId, {
+      company: work.company.trim(),
+      title: work.title.trim() || undefined,
+      startDate: work.startDate || undefined,
+      endDate: work.endDate || undefined,
+      description: work.description.trim() || undefined,
+    });
+    setShowWorkForm(false);
+    setWork({ company: "", title: "", startDate: "", endDate: "", description: "" });
     await load(empId);
   }
 
@@ -379,16 +407,43 @@ function MyDataInner() {
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-800">證照資料</h3>
-                    <button onClick={quickAddCert} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
-                      ＋ 新增證照
+                    <button onClick={() => setShowCertForm((s) => !s)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                      {showCertForm ? "收合" : "＋ 新增證照"}
                     </button>
                   </div>
+                  {showCertForm && (
+                    <form onSubmit={submitCert} className="mb-4 space-y-3 rounded-lg bg-gray-50 p-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className={label}>證照名稱</label>
+                          <input className={input} value={cert.name} onChange={(e) => setCert({ ...cert, name: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>發證單位</label>
+                          <input className={input} value={cert.issuer} onChange={(e) => setCert({ ...cert, issuer: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>發證日期</label>
+                          <input type="date" className={input} value={cert.issuedDate} onChange={(e) => setCert({ ...cert, issuedDate: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={label}>到期日期</label>
+                          <input type="date" className={input} value={cert.expiryDate} onChange={(e) => setCert({ ...cert, expiryDate: e.target.value })} />
+                        </div>
+                      </div>
+                      <button type="submit" className="rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: "var(--brand)" }}>
+                        新增
+                      </button>
+                    </form>
+                  )}
                   <ul className="divide-y divide-gray-100">
                     {data.certifications.map((c) => (
                       <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                         <span>
                           <span className="font-medium text-gray-800">{c.name}</span>{" "}
-                          <span className="text-gray-500">{c.issuer ?? ""}</span>
+                          <span className="text-gray-500">
+                            {[c.issuer, [c.issued_date, c.expiry_date].filter(Boolean).join(" ~ ")].filter(Boolean).join(" · ")}
+                          </span>
                         </span>
                         <button onClick={() => removeItem("cert", c.id)} className="text-red-600 hover:underline">
                           刪除
@@ -405,10 +460,39 @@ function MyDataInner() {
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="font-semibold text-gray-800">工作經歷</h3>
-                  <button onClick={quickAddWork} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
-                    ＋ 新增經歷
+                  <button onClick={() => setShowWorkForm((s) => !s)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
+                    {showWorkForm ? "收合" : "＋ 新增經歷"}
                   </button>
                 </div>
+                {showWorkForm && (
+                  <form onSubmit={submitWork} className="mb-4 space-y-3 rounded-lg bg-gray-50 p-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className={label}>公司</label>
+                        <input className={input} value={work.company} onChange={(e) => setWork({ ...work, company: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={label}>職稱</label>
+                        <input className={input} value={work.title} onChange={(e) => setWork({ ...work, title: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={label}>開始日期</label>
+                        <input type="date" className={input} value={work.startDate} onChange={(e) => setWork({ ...work, startDate: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className={label}>結束日期</label>
+                        <input type="date" className={input} value={work.endDate} onChange={(e) => setWork({ ...work, endDate: e.target.value })} />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className={label}>說明</label>
+                        <textarea className={input} rows={3} value={work.description} onChange={(e) => setWork({ ...work, description: e.target.value })} />
+                      </div>
+                    </div>
+                    <button type="submit" className="rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: "var(--brand)" }}>
+                      新增
+                    </button>
+                  </form>
+                )}
                 <ul className="divide-y divide-gray-100">
                   {data.workHistory.map((w) => (
                     <li key={w.id} className="flex items-center justify-between gap-3 py-2 text-sm">

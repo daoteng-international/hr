@@ -5,6 +5,7 @@ import { Card, PageHeader, Empty, ErrorText, PrimaryButton } from "@/components/
 import { apiDownload } from "@/lib/api-client";
 import {
   getEmployees,
+  getEmployeeProfile,
   getSalaryStructure,
   putSalaryStructure,
   runPayroll,
@@ -40,6 +41,7 @@ export default function PayrollAdminPage() {
   const [laborGrade, setLaborGrade] = useState("");
   const [healthGrade, setHealthGrade] = useState("");
   const [employeeKeyword, setEmployeeKeyword] = useState("");
+  const [employeeIdentityById, setEmployeeIdentityById] = useState<Record<string, string>>({});
   const [salaryMsg, setSalaryMsg] = useState<string | null>(null);
   const [nhiDeps, setNhiDeps] = useState<NhiDependent[]>([]);
   const [taxDeps, setTaxDeps] = useState<TaxDependent[]>([]);
@@ -64,11 +66,11 @@ export default function PayrollAdminPage() {
     const term = employeeKeyword.trim().toLowerCase();
     if (!term) return employees;
     return employees.filter((employee) => {
-      return [employee.name, employee.emp_no, employee.id]
+      return [employee.name, employee.emp_no, employee.id, employeeIdentityById[employee.id]]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
     });
-  }, [employeeKeyword, employees]);
+  }, [employeeIdentityById, employeeKeyword, employees]);
 
   const payslipSummary = useMemo(() => {
     return payslips.reduce(
@@ -85,9 +87,32 @@ export default function PayrollAdminPage() {
   }, [payslips]);
 
   useEffect(() => {
+    let active = true;
     getEmployees()
-      .then((r) => setEmployees(r.employees))
+      .then(async (r) => {
+        if (!active) return;
+        setEmployees(r.employees);
+        const identities = await Promise.all(
+          r.employees.map(async (employee) => {
+            try {
+              const profile = await getEmployeeProfile(employee.id);
+              const values = [
+                profile.profile?.id_number,
+                profile.profile?.id_number2,
+                profile.profile?.id_number3,
+              ].filter(Boolean);
+              return [employee.id, values.join(" / ")] as const;
+            } catch {
+              return [employee.id, ""] as const;
+            }
+          }),
+        );
+        if (active) setEmployeeIdentityById(Object.fromEntries(identities));
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "載入員工失敗"));
+    return () => {
+      active = false;
+    };
   }, []);
 
   const loadEmployee = useCallback(async (id: string) => {
@@ -211,6 +236,7 @@ export default function PayrollAdminPage() {
     if (!employee) return id.slice(0, 8);
     return employee.emp_no ? `${employee.emp_no} · ${employee.name}` : employee.name;
   };
+  const selectedIdentity = empId ? employeeIdentityById[empId] : "";
 
   async function finalizeAll() {
     const drafts = payslips.filter((payslip) => payslip.status !== "finalized");
@@ -257,7 +283,7 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
               className={inputCls}
               value={employeeKeyword}
               onChange={(event) => setEmployeeKeyword(event.target.value)}
-              placeholder="輸入工號、姓名或員工 ID"
+              placeholder="輸入工號、姓名、身分證或員工 ID"
             />
           </div>
           <div className="sm:col-span-2">
@@ -268,6 +294,9 @@ pre{background:#f7f7f7;padding:12px;font-size:12px;overflow:auto}</style></head>
                 <option key={employee.id} value={employee.id}>{empName(employee.id)}</option>
               ))}
             </select>
+            {selectedIdentity && (
+              <p className="mt-1 text-xs text-gray-500">證件號碼：{selectedIdentity}</p>
+            )}
           </div>
         </div>
         {empId && (
