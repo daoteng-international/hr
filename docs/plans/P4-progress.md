@@ -33,8 +33,12 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
     `GET /notifications?status=`（requireAuth+requireTenant；員工只看自己、HR 看全租戶，newest first）、
     `POST /notifications/:id/read`（本人或 HR；設 payload.read=true；非本人非 HR / 跨租戶 → 404 不洩漏存在）。
   - `app.ts` 掛載 detectionRouter、notificationsRouter。
-- [ ] **F2 AI 自動報表**（需 Gemini）：以 Gemini 把 F1 偵測結果 + P3 報表彙整成自然語言摘要 / 月報。
-- [ ] **F3 AI 問答**（需 Gemini）：HR/員工對自家差勤資料的自然語言問答（檢索 + Gemini 生成）。
+- [x] **F2 AI 自動報表**（需 Gemini）：
+      `POST /ai/report-summary` 由 HR 觸發，以 Gemini 彙整同租戶出勤、請假/表單、薪資、人力、異常偵測與通知資料，
+      產生繁中 Markdown 月報摘要；Admin `/admin/ai` 提供日期區間、薪資年月、單位篩選與月報產生入口。
+- [x] **F3 AI 問答**（需 Gemini）：
+      `POST /ai/ask` 支援 HR/員工自然語言問答。HR scope 讀同租戶彙總資料；員工 scope 只讀自己的差勤、表單、薪資與通知資料，
+      prompt 明確禁止推論或揭露 scope 外資料。Admin `/admin/ai` 與 ESS `/ess/ai` 皆有問答入口。
 - [x] **F4 LINE / Email 投遞**（需憑證）：
       `deliverPendingNotifications` 會把 `channel=email|line` 的 pending 通知實際送出並標
       sent/failed + sent_at；`channel=inapp` 可透過 `payload.channels` 或
@@ -76,3 +80,8 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
   會遍歷 active tenants，對昨日執行忘打卡掃描、對預設近 7 日執行異常偵測並產生通知佇列；
   `@hr/worker` 新增每日 03:00 `detect-and-notify-attendance` scheduler，並保留每日 02:00 結算與每 5 分鐘投遞。
   `detectAnomalies(queue:true)` 加入 pending 通知判重，避免相同 employee/anomalyType/from/to 在 cron 重跑時重複建立。
+- 2026-07-07 / F2-F3 AI 自動報表 + AI 問答 / 新增 `apps/api/src/services/ai-insights.ts` 與
+  `apps/api/src/routes/ai.ts`。Gemini 憑證支援 `GEMINI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `GOOGLE_API_KEY`，
+  model 預設 `gemini-2.0-flash`、可用 `GEMINI_MODEL` 覆蓋。所有 Supabase 查詢皆 `.eq("tenant_id", tenantId)`；
+  員工問答以 caller employee_id 再限縮 attendance / leave / payslip / notification / anomaly context。
+  Web 新增 Admin `/admin/ai`（月報摘要 + HR 問答）與 ESS `/ess/ai`（個人問答），並接入後台/ESS 導航。

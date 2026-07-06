@@ -245,6 +245,7 @@ function EssHome() {
               { label: "我的薪資單", href: "/ess/payslips" },
               { label: "內部職缺", href: "/ess/jobs" },
               { label: "通知中心", href: "/ess/notifications" },
+              { label: "AI 問答", href: "/ess/ai" },
               { label: "我的資料", href: "/ess/mydata" },
             ].map((q) => (
               <button

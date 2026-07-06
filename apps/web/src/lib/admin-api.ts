@@ -1598,3 +1598,34 @@ export function getLeaveReport(params: { from: string; to: string }) {
   const qs = new URLSearchParams({ from: params.from, to: params.to });
   return apiFetch<LeaveReport>(`/reports/leave?${qs.toString()}`);
 }
+
+export interface AiReportSummaryResponse {
+  summary: string;
+  model: string;
+  context: unknown;
+}
+
+export interface AiAskResponse {
+  answer: string;
+  model: string;
+  scope: "tenant" | "self";
+}
+
+export function generateAiReportSummary(body: {
+  from: string;
+  to: string;
+  period: string;
+  deptId?: string;
+}) {
+  return apiFetch<AiReportSummaryResponse>("/ai/report-summary", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function askAiQuestion(body: { question: string; from: string; to: string; period: string }) {
+  return apiFetch<AiAskResponse>("/ai/ask", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

@@ -26,7 +26,8 @@ export function EssHeader({
     | "balances"
     | "schedule"
     | "payslips"
-    | "jobs";
+    | "jobs"
+    | "ai";
   /** When the signed-in user is an HR/platform admin, show a link to /admin. */
   isAdmin?: boolean;
 }) {
@@ -51,7 +52,8 @@ export function EssHeader({
       | "balances"
       | "schedule"
       | "payslips"
-      | "jobs",
+      | "jobs"
+      | "ai",
     label: string,
     href: string,
   ) => (
@@ -84,6 +86,7 @@ export function EssHeader({
           {tab("balances", "剩餘假別", "/ess/balances")}
           {tab("payslips", "我的薪資單", "/ess/payslips")}
           {tab("jobs", "內部職缺", "/ess/jobs")}
+          {tab("ai", "AI 問答", "/ess/ai")}
           {tab("mydata", "我的資料", "/ess/mydata")}
         </nav>
       </div>

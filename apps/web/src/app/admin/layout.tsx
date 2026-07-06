@@ -19,7 +19,10 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] 
   },
   {
     title: "Dashboard",
-    items: [{ href: "/admin/dashboard", label: "人力分析" }],
+    items: [
+      { href: "/admin/dashboard", label: "人力分析" },
+      { href: "/admin/ai", label: "AI 助理" },
+    ],
   },
   {
     title: "Foundation",
