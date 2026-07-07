@@ -12,6 +12,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const resolveLoginEmail = (value: string) => {
+    const normalized = value.trim();
+    return normalized.toLowerCase() === "demo" ? "demo@daoteng.demo" : normalized;
+  };
 
   // Already signed in → skip the form.
   useEffect(() => {
@@ -25,7 +29,7 @@ export default function LoginPage() {
     try {
       const supabase = getSupabaseBrowser();
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: resolveLoginEmail(email),
         password,
       });
       if (signInError) {
@@ -55,17 +59,18 @@ export default function LoginPage() {
         <p className="text-sm text-gray-500 mb-6">HR 差勤系統 · 員工自助</p>
 
         <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
-          Email
+          Email / 帳號
         </label>
         <input
           id="email"
-          type="email"
+          type="text"
           autoComplete="username"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
         />
+        <p className="-mt-2 mb-4 text-xs text-gray-400">Demo 可直接輸入 demo。</p>
 
         <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
           密碼
