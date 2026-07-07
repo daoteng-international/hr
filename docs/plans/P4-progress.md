@@ -90,3 +90,4 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
   model 預設 `gemini-2.0-flash`、可用 `GEMINI_MODEL` 覆蓋。所有 Supabase 查詢皆 `.eq("tenant_id", tenantId)`；
   員工問答以 caller employee_id 再限縮 attendance / leave / payslip / notification / anomaly context。
   Web 新增 Admin `/admin/ai`（月報摘要 + HR 問答）與 ESS `/ess/ai`（個人問答），並接入後台/ESS 導航。
+  GitHub Actions `deploy-api.yml` 會在 `GEMINI_API_KEY` GitHub Secret 存在時，以 stdin 安全同步到 Railway API service。

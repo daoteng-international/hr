@@ -25,6 +25,21 @@ jobs:
           node-version: "22"
       - name: Install Railway CLI
         run: npm i -g @railway/cli
+      - name: Sync Gemini API key to Railway
+        if: ${{ secrets.GEMINI_API_KEY != '' }}
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          railway link \
+            --project dd181562-df73-4a1d-b4d6-c9f3e4c07e52 \
+            --service b79d9602-745f-46d1-8dfb-cb448feab202 \
+            --environment production
+          printf '%s' "$GEMINI_API_KEY" |
+            railway variable set GEMINI_API_KEY --stdin \
+              --service b79d9602-745f-46d1-8dfb-cb448feab202 \
+              --environment production \
+              --skip-deploys
       - name: Deploy API to Railway
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
