@@ -18,6 +18,12 @@ const logger = pino({
 // Redis is configured (skeleton-only mode).
 let attendanceWorker: Worker | null = null;
 
+const SCHEDULER_IDS = [
+  "daily-attendance-settle",
+  "deliver-pending-notifications",
+  "detect-and-notify-attendance",
+];
+
 /**
  * Register the daily attendance settlement scheduler.
  *
@@ -29,6 +35,13 @@ let attendanceWorker: Worker | null = null;
  */
 async function registerSchedulers() {
   if (!attendanceQueue || !maybeRedis) return;
+
+  if (process.env.ENABLE_WORKER_SCHEDULERS !== "true") {
+    const queue = attendanceQueue;
+    await Promise.allSettled(SCHEDULER_IDS.map((id) => queue.removeJobScheduler(id)));
+    logger.warn("ENABLE_WORKER_SCHEDULERS is not true — job schedulers are paused");
+    return;
+  }
 
   await attendanceQueue.upsertJobScheduler(
     "daily-attendance-settle",

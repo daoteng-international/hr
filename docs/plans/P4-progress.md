@@ -55,6 +55,8 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
       `scanMissingPunches`（昨日）與 `detectAnomalies`（預設近 7 日、queue=true），
       並每 5 分鐘呼叫 `/internal/notifications/deliver-pending` 投遞外部通知。內部端點以
       `INTERNAL_JOB_TOKEN` 保護；異常通知新增 pending 判重，避免排程重跑重複塞相同期間/類型提醒。
+      目前線上排程預設停用：worker 需 `ENABLE_WORKER_SCHEDULERS=true` 才註冊 cron，API internal jobs 需
+      `ENABLE_INTERNAL_JOBS=true` 才執行。
 
 ## 進度日誌
 （每完成一個功能在此追加一行：日期 / 功能 / commit / 測試結果）
@@ -80,6 +82,9 @@ P4 把已落地的差勤/薪資/報表資料推進到「主動偵測 + 自動觸
   會遍歷 active tenants，對昨日執行忘打卡掃描、對預設近 7 日執行異常偵測並產生通知佇列；
   `@hr/worker` 新增每日 03:00 `detect-and-notify-attendance` scheduler，並保留每日 02:00 結算與每 5 分鐘投遞。
   `detectAnomalies(queue:true)` 加入 pending 通知判重，避免相同 employee/anomalyType/from/to 在 cron 重跑時重複建立。
+- 2026-07-07 / 停止線上排程 / API internal jobs 加上 `ENABLE_INTERNAL_JOBS=true` 總開關，未開啟時回
+  `internal_jobs_paused`；worker 加上 `ENABLE_WORKER_SCHEDULERS=true` 開關，未開啟時會移除既有 BullMQ
+  job schedulers 並不再註冊新 cron。手動 HR 操作（例如後台通知中心手動投遞）不受影響。
 - 2026-07-07 / F2-F3 AI 自動報表 + AI 問答 / 新增 `apps/api/src/services/ai-insights.ts` 與
   `apps/api/src/routes/ai.ts`。Gemini 憑證支援 `GEMINI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `GOOGLE_API_KEY`，
   model 預設 `gemini-2.0-flash`、可用 `GEMINI_MODEL` 覆蓋。所有 Supabase 查詢皆 `.eq("tenant_id", tenantId)`；

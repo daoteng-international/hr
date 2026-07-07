@@ -51,6 +51,12 @@ function requireInternalToken(req: Request, res: Response): boolean {
   return true
 }
 
+function requireInternalJobsEnabled(res: Response): boolean {
+  if (process.env.ENABLE_INTERNAL_JOBS === "true") return true
+  res.status(409).json({ error: "internal_jobs_paused" })
+  return false
+}
+
 function taipeiDateDaysAgo(daysAgo: number): string {
   const date = new Date(Date.now() - daysAgo * 86_400_000)
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -73,6 +79,7 @@ internalJobsRouter.post(
   "/internal/attendance/daily-settle",
   async (req: Request, res: Response, next: NextFunction) => {
     if (!requireInternalToken(req, res)) return
+    if (!requireInternalJobsEnabled(res)) return
     const parsed = dailySettleSchema.safeParse(req.body ?? {})
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
@@ -122,6 +129,7 @@ internalJobsRouter.post(
   "/internal/attendance/detect-and-notify",
   async (req: Request, res: Response, next: NextFunction) => {
     if (!requireInternalToken(req, res)) return
+    if (!requireInternalJobsEnabled(res)) return
     const parsed = detectAndNotifySchema.safeParse(req.body ?? {})
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
@@ -186,6 +194,7 @@ internalJobsRouter.post(
   "/internal/notifications/deliver-pending",
   async (req: Request, res: Response, next: NextFunction) => {
     if (!requireInternalToken(req, res)) return
+    if (!requireInternalJobsEnabled(res)) return
     const parsed = deliverNotificationsSchema.safeParse(req.body ?? {})
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_body", details: parsed.error.flatten() })
