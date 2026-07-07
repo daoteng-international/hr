@@ -1629,3 +1629,17 @@ export function askAiQuestion(body: { question: string; from: string; to: string
     body: JSON.stringify(body),
   });
 }
+
+export interface DemoSeedResult {
+  ok: true;
+  period: string;
+  employees: number;
+  departments: number;
+  attendanceDays: number;
+  payslips: number;
+  notifications: number;
+}
+
+export function seedDemoData() {
+  return apiFetch<DemoSeedResult>("/demo/seed", { method: "POST" });
+}

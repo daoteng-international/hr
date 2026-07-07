@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, PageHeader, Empty } from "@/components/admin-ui";
-import { getBranding, getRequests } from "@/lib/admin-api";
+import { getBranding, getRequests, seedDemoData } from "@/lib/admin-api";
 
 const LINKS: { href: string; label: string; desc: string; module: string }[] = [
   { href: "/admin/dashboard", label: "Dashboard", desc: "在職人數分析", module: "Dashboard" },
@@ -34,6 +34,8 @@ export default function AdminOverview() {
   const [pending, setPending] = useState<number | null>(null);
   const [widgets, setWidgets] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [demoStatus, setDemoStatus] = useState<string | null>(null);
+  const [seedingDemo, setSeedingDemo] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -66,6 +68,20 @@ export default function AdminOverview() {
           return !["/admin/approvals", "/admin/dashboard", "/admin/onboarding", "/admin/announcements", "/admin/payroll"].includes(link.href);
         });
 
+  async function onSeedDemo() {
+    setError(null);
+    setDemoStatus(null);
+    setSeedingDemo(true);
+    try {
+      const res = await seedDemoData();
+      setDemoStatus(`已建立 Demo 資料：${res.employees} 位員工、${res.attendanceDays} 筆出勤、${res.payslips} 份薪資單、${res.notifications} 筆通知。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "建立 Demo 資料失敗");
+    } finally {
+      setSeedingDemo(false);
+    }
+  }
+
   return (
     <>
       <PageHeader title="總覽" desc="後台管理首頁" />
@@ -78,15 +94,25 @@ export default function AdminOverview() {
               {pending === null ? "—" : pending}
             </p>
           </div>
-          <Link
-            href="/admin/approvals"
-            className="rounded-md px-4 py-2 text-sm font-medium text-white"
-            style={{ backgroundColor: "var(--brand)" }}
-          >
-            前往簽核
-          </Link>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              onClick={() => void onSeedDemo()}
+              disabled={seedingDemo}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-60"
+            >
+              {seedingDemo ? "建立中…" : "建立 Demo 資料"}
+            </button>
+            <Link
+              href="/admin/approvals"
+              className="rounded-md px-4 py-2 text-sm font-medium text-white"
+              style={{ backgroundColor: "var(--brand)" }}
+            >
+              前往簽核
+            </Link>
+          </div>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {demoStatus && <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{demoStatus}</p>}
       </Card>
 
       <Card>

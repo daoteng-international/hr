@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { TenantBranding } from "@/components/TenantBranding";
+import { FloatingAiChat } from "@/components/FloatingAiChat";
 import "./globals.css";
 
 /**
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body>
         <TenantBranding />
         {children}
+        <FloatingAiChat />
       </body>
     </html>
   );

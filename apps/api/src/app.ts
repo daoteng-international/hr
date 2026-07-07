@@ -23,6 +23,7 @@ import { reportsRouter } from "./routes/reports.js"
 import { detectionRouter } from "./routes/detection.js"
 import { notificationsRouter } from "./routes/notifications.js"
 import { aiRouter } from "./routes/ai.js"
+import { demoRouter } from "./routes/demo.js"
 import { kpiTemplatesRouter } from "./routes/kpi-templates.js"
 import { kpiReviewsRouter } from "./routes/kpi-reviews.js"
 import { onboardingsRouter } from "./routes/onboardings.js"
@@ -79,6 +80,7 @@ app.use(reportsRouter)
 app.use(detectionRouter)
 app.use(notificationsRouter)
 app.use(aiRouter)
+app.use(demoRouter)
 app.use(kpiTemplatesRouter)
 app.use(kpiReviewsRouter)
 app.use(onboardingsRouter)

@@ -320,27 +320,101 @@ async function generateWithGemini(system: string, prompt: string): Promise<{ tex
   return { text, model }
 }
 
+function hours(minutes: number): string {
+  return `${(minutes / 60).toFixed(1)} 小時`
+}
+
+function buildLocalReportSummary(context: Awaited<ReturnType<typeof loadContext>>): string {
+  const attendance = context.attendance.totals
+  const payroll = context.payroll
+  const anomalies = context.anomalies
+  const topLate = context.attendance.topLate
+    .slice(0, 3)
+    .map((row) => `${row.employeeName} ${row.lateMinutes} 分`)
+    .join("、")
+  return [
+    "### 本期重點",
+    `- 人力總數 ${context.headcount.total} 人，出勤紀錄 ${attendance.presentDays} 筆，總工時 ${hours(attendance.workedMinutes)}。`,
+    `- 薪資期別 ${payroll.period} 共 ${payroll.count} 份薪資單，應發總額 $${payroll.totalGross.toLocaleString("zh-TW")}。`,
+    `- 遲到合計 ${attendance.lateMinutes} 分，加班合計 ${hours(attendance.overtimeMinutes)}。`,
+    topLate ? `- 遲到較高人員：${topLate}。` : "- 本期沒有明顯遲到排行資料。",
+    "",
+    "### 風險 / 異常",
+    `- 異常偵測 ${anomalies.count} 筆：${Object.entries(anomalies.byType).map(([key, value]) => `${key} ${value}`).join(" / ") || "無"}`,
+    `- 通知佇列：${Object.entries(context.notifications).map(([key, value]) => `${key} ${value}`).join(" / ") || "無"}`,
+    "",
+    "### 建議行動",
+    "- 先檢查遲到與加班較高的人員，確認是否為排班、補卡或臨時專案造成。",
+    "- Demo 模式提示：目前未偵測到 Gemini key，以上為系統資料 fallback 摘要；設定 `GEMINI_API_KEY` 後會改由 Gemini 產生完整分析。",
+  ].join("\n")
+}
+
+function buildLocalAnswer(question: string, context: Awaited<ReturnType<typeof loadContext>>): string {
+  const attendance = context.attendance.totals
+  const payroll = context.payroll
+  const leaveSummary = Object.entries(context.leave.summary)
+    .map(([key, value]) => `${key} ${value.count} 件/${value.hours} 小時`)
+    .join("、")
+  const topLate = context.attendance.topLate
+    .slice(0, 5)
+    .map((row) => `${row.employeeName}：遲到 ${row.lateMinutes} 分、加班 ${hours(row.overtimeMinutes)}`)
+    .join("\n")
+  return [
+    `你問：「${question}」`,
+    "",
+    "依目前可讀資料摘要如下：",
+    `- 查詢範圍：${context.filters.from} ~ ${context.filters.to}，薪資年月 ${context.filters.period}`,
+    `- 出勤：${attendance.presentDays} 筆、總工時 ${hours(attendance.workedMinutes)}、遲到 ${attendance.lateMinutes} 分、加班 ${hours(attendance.overtimeMinutes)}。`,
+    `- 薪資：${payroll.count} 份薪資單，應發總額 $${payroll.totalGross.toLocaleString("zh-TW")}。`,
+    `- 表單：${leaveSummary || "目前沒有表單資料"}`,
+    `- 異常：${context.anomalies.count} 筆（${Object.entries(context.anomalies.byType).map(([key, value]) => `${key} ${value}`).join(" / ") || "無"}）。`,
+    topLate ? `\n遲到/加班較高名單：\n${topLate}` : "",
+    "",
+    "Demo 模式提示：目前未偵測到 Gemini key，這是系統資料 fallback 回答；設定 `GEMINI_API_KEY` 後會改由 Gemini 回答。",
+  ].filter(Boolean).join("\n")
+}
+
 export async function generateAiReportSummary(tenantId: string, input: AiReportInput) {
   const context = await loadContext(tenantId, input)
-  const { text, model } = await generateWithGemini(
-    "你是台灣 HR SaaS 的資料分析助理。只能根據提供的 JSON 資料回答，用繁體中文，務實、精簡，不臆測未提供的事實。",
-    [
-      "請產出 HR 月報摘要，格式使用 Markdown：",
-      "1. 本期重點（3-5 點）",
-      "2. 風險/異常",
-      "3. 建議行動",
-      "4. 可追蹤指標",
-      `資料 JSON：${JSON.stringify(context)}`,
-    ].join("\n"),
-  )
+  let text: string
+  let model: string
+  try {
+    const result = await generateWithGemini(
+      "你是台灣 HR SaaS 的資料分析助理。只能根據提供的 JSON 資料回答，用繁體中文，務實、精簡，不臆測未提供的事實。",
+      [
+        "請產出 HR 月報摘要，格式使用 Markdown：",
+        "1. 本期重點（3-5 點）",
+        "2. 風險/異常",
+        "3. 建議行動",
+        "4. 可追蹤指標",
+        `資料 JSON：${JSON.stringify(context)}`,
+      ].join("\n"),
+    )
+    text = result.text
+    model = result.model
+  } catch (err) {
+    if (!(err instanceof GeminiNotConfiguredError)) throw err
+    text = buildLocalReportSummary(context)
+    model = "local-demo-fallback"
+  }
   return { summary: text, model, context }
 }
 
 export async function answerAiQuestion(tenantId: string, input: AiAskInput) {
   const context = await loadContext(tenantId, input)
-  const { text, model } = await generateWithGemini(
-    "你是 HR 系統資料問答助理。只能根據提供的 JSON 回答；若資料不足，請明確說資料不足。員工 scope=self 時不得推論或透露其他員工資料。",
-    [`問題：${input.question}`, `資料 JSON：${JSON.stringify(context)}`].join("\n\n"),
-  )
+  let text: string
+  let model: string
+  try {
+    const result = await generateWithGemini(
+      "你是 HR 系統資料問答助理。只能根據提供的 JSON 回答；若資料不足，請明確說資料不足。員工 scope=self 時不得推論或透露其他員工資料。",
+      [`問題：${input.question}`, `資料 JSON：${JSON.stringify(context)}`].join("\n\n"),
+    )
+    text = result.text
+    model = result.model
+  } catch (err) {
+    if (!(err instanceof GeminiNotConfiguredError)) throw err
+    text = buildLocalAnswer(input.question, context)
+    model = "local-demo-fallback"
+  }
   return { answer: text, model, scope: context.scope }
 }
