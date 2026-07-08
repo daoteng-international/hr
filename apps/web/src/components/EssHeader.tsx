@@ -69,6 +69,7 @@ export function EssHeader({
     { key: "ai", label: "AI 問答", short: "AI", href: "/ess/ai" },
     { key: "mydata", label: "我的資料", short: "資料", href: "/ess/mydata" },
   ];
+  const activeTab = tabs.find((item) => item.key === active) ?? tabs[0];
 
   const tab = (
     key: (typeof tabs)[number]["key"],
@@ -77,7 +78,7 @@ export function EssHeader({
   ) => (
     <button
       onClick={() => router.push(href)}
-      className={`text-sm font-medium px-3 py-1.5 rounded-md ${
+      className={`whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded-md ${
         active === key ? "text-white" : "text-gray-600 hover:bg-gray-100"
       }`}
       style={active === key ? { backgroundColor: "var(--brand)" } : undefined}
@@ -95,11 +96,11 @@ export function EssHeader({
         <button
           type="button"
           onClick={() => router.push("/ess")}
-          className="min-w-0 text-left text-base font-bold sm:text-lg"
+          className="min-w-0 text-left text-xl font-bold leading-tight sm:text-lg lg:text-xl"
           style={{ color: "var(--brand)" }}
         >
           <span className="block truncate">{appName ?? "HR 差勤系統"}</span>
-          <span className="block text-xs font-medium text-gray-400 sm:hidden">員工自助 · 手機版</span>
+          <span className="block text-sm font-medium text-gray-400 lg:hidden">員工自助</span>
         </button>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {isAdmin && (
@@ -119,7 +120,30 @@ export function EssHeader({
           </button>
         </div>
       </div>
-      <nav className="-mx-3 mt-3 flex gap-1 overflow-x-auto px-3 pb-1 sm:-mx-4 sm:px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
+      <div className="mt-3 flex items-center gap-2 lg:hidden">
+        <span
+          className="shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-white"
+          style={{ backgroundColor: "var(--brand)" }}
+        >
+          {activeTab.label}
+        </span>
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">切換功能</span>
+          <select
+            value={activeTab.href}
+            onChange={(event) => router.push(event.target.value)}
+            className="w-full appearance-none rounded-full border border-gray-200 bg-gray-50 px-4 py-2 pr-9 text-sm font-medium text-gray-700 outline-none"
+          >
+            {tabs.map((item) => (
+              <option key={item.key} value={item.href}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">▼</span>
+        </label>
+      </div>
+      <nav className="mt-3 hidden gap-1 overflow-x-auto pb-1 lg:flex lg:flex-wrap lg:overflow-visible lg:pb-0">
         {tabs.map((item) => tab(item.key, item.label, item.href))}
       </nav>
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-gray-100 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
