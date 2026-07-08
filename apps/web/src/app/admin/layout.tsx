@@ -93,11 +93,13 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
   // nav href — but "/admin" only lights up on an exact match so it isn't always on.
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+  const flatNav = NAV_GROUPS.flatMap((group) => group.items);
+  const activeItem = flatNav.find((item) => isActive(item.href));
 
   return (
-    <div style={brandStyle} className="min-h-screen bg-gray-50 md:flex">
+    <div style={brandStyle} className="admin-shell min-h-screen bg-gray-50 md:flex">
       {/* Sidebar */}
-      <aside className="shrink-0 border-b border-gray-100 bg-white md:min-h-screen md:w-60 md:border-b-0 md:border-r">
+      <aside className="hidden shrink-0 border-b border-gray-100 bg-white md:block md:min-h-screen md:w-60 md:border-b-0 md:border-r">
         <div className="flex items-center justify-between px-5 py-4">
           <span className="text-lg font-bold" style={{ color: "var(--brand)" }}>
             {branding?.appName ?? "HR 後台"}
@@ -136,13 +138,74 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
       </aside>
 
       {/* Content */}
-      <div className="flex-1">
-        <header className="flex items-center justify-end border-b border-gray-100 bg-white px-4 py-3 md:hidden">
-          <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-800">
-            登出
-          </button>
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => router.push("/admin")}
+                className="block max-w-[52vw] truncate text-left text-xl font-bold leading-tight"
+                style={{ color: "var(--brand)" }}
+              >
+                {branding?.appName ?? "HR 後台"}
+              </button>
+              <p className="truncate text-sm font-medium text-gray-400">
+                {activeItem?.label ?? "管理員後台"}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push("/ess")}
+                className="rounded-full border px-3 py-1.5 text-sm font-medium"
+                style={{ borderColor: "var(--brand)", color: "var(--brand)" }}
+              >
+                員工端
+              </button>
+              <button
+                onClick={logout}
+                className="rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-600"
+              >
+                登出
+              </button>
+            </div>
+          </div>
+          <nav className="-mx-3 mt-3 flex gap-2 overflow-x-auto px-3 pb-1" aria-label="後台功能切換">
+            {flatNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`shrink-0 rounded-full px-4 py-2.5 text-sm font-semibold ${
+                  isActive(item.href)
+                    ? "text-white shadow-sm"
+                    : "border border-gray-200 bg-gray-50 text-gray-700"
+                }`}
+                style={isActive(item.href) ? { backgroundColor: "var(--brand)" } : undefined}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <nav className="-mx-3 mt-2 flex gap-2 overflow-x-auto px-3 pb-1" aria-label="後台模組分類">
+            {NAV_GROUPS.map((group) => {
+              const first = group.items[0];
+              const groupActive = group.items.some((item) => isActive(item.href));
+              return (
+                <Link
+                  key={group.title}
+                  href={first.href}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                    groupActive ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {group.title}
+                </Link>
+              );
+            })}
+          </nav>
         </header>
-        <main className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">{children}</main>
+        <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:px-4 md:space-y-6 md:p-8">{children}</main>
       </div>
     </div>
   );

@@ -87,24 +87,24 @@ export default function AdminOverview() {
       <PageHeader title="總覽" desc="後台管理首頁" />
 
       <Card>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-medium text-gray-500">待簽核申請</h2>
             <p className="mt-1 text-3xl font-bold text-gray-900">
               {pending === null ? "—" : pending}
             </p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <button
               onClick={() => void onSeedDemo()}
               disabled={seedingDemo}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-60"
+              className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 disabled:opacity-60 md:rounded-md md:py-2"
             >
               {seedingDemo ? "建立中…" : "建立 Demo 資料"}
             </button>
             <Link
               href="/admin/approvals"
-              className="rounded-md px-4 py-2 text-sm font-medium text-white"
+              className="rounded-xl px-4 py-2.5 text-center text-sm font-medium text-white md:rounded-md md:py-2"
               style={{ backgroundColor: "var(--brand)" }}
             >
               前往簽核
