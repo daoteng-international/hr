@@ -90,9 +90,9 @@ export function EssHeader({
   return (
     <header
       style={brandStyle}
-      className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-4"
+      className="sticky top-0 z-50 border-b border-gray-100 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-4"
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="relative z-20 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => router.push("/ess")}
@@ -120,7 +120,7 @@ export function EssHeader({
           </button>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-2 lg:hidden">
+      <div className="relative z-20 mt-3 flex items-center gap-2 lg:hidden">
         <span
           className="shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-white"
           style={{ backgroundColor: "var(--brand)" }}
@@ -146,7 +146,7 @@ export function EssHeader({
       <nav className="mt-3 hidden gap-1 overflow-x-auto pb-1 lg:flex lg:flex-wrap lg:overflow-visible lg:pb-0">
         {tabs.map((item) => tab(item.key, item.label, item.href))}
       </nav>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-gray-100 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-gray-100 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
         {tabs.slice(0, 5).map((item) => (
           <button
             key={item.key}
