@@ -230,7 +230,7 @@ function ScheduleInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="schedule" isAdmin={isAdmin} />
-      <main className="mx-auto max-w-6xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+      <main className="mx-auto max-w-6xl space-y-4 px-3 pb-6 pt-4 sm:px-4">
         <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>

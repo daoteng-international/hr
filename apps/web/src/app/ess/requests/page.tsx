@@ -304,7 +304,7 @@ function RequestsView() {
         active="requests"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-2xl space-y-6 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+      <main className="mx-auto max-w-2xl space-y-6 px-3 pb-6 pt-4 sm:px-4">
         {/* New request form */}
         <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">新增申請</h2>

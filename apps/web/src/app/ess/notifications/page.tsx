@@ -113,7 +113,7 @@ function NotificationsInner() {
         active="notifications"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-6 pt-4 sm:px-4">
         <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>

@@ -166,7 +166,7 @@ function EssHome() {
         active="home"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-2xl space-y-4 px-3 pb-28 pt-4 sm:space-y-6 sm:px-4 lg:pb-6">
+      <main className="mx-auto max-w-2xl space-y-4 px-3 pb-6 pt-4 sm:space-y-6 sm:px-4">
         {/* Punch card */}
         <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

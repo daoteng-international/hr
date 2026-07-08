@@ -44,7 +44,7 @@ function BalancesInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="balances" isAdmin={isAdmin} />
-      <main className="mx-auto max-w-2xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+      <main className="mx-auto max-w-2xl space-y-4 px-3 pb-6 pt-4 sm:px-4">
         <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-800">剩餘假別</h2>
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}

@@ -48,7 +48,7 @@ function EssAiPageInner() {
         active="ai"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-28 pt-4 sm:space-y-6 sm:px-4 lg:pb-6">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-6 pt-4 sm:space-y-6 sm:px-4">
         <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
           <h1 className="text-xl font-bold text-gray-900">AI 問答</h1>
           <p className="mt-1 text-sm text-gray-500">
