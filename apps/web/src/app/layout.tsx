@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
 import { TenantBranding } from "@/components/TenantBranding";
 import { FloatingAiChat } from "@/components/FloatingAiChat";
@@ -26,6 +26,12 @@ const branding = getBranding();
 export const metadata: Metadata = {
   title: branding.title,
   description: "多租戶白標 HR 差勤系統",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

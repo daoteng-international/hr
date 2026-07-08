@@ -166,13 +166,16 @@ function EssHome() {
         active="home"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-2xl p-4 space-y-6">
+      <main className="mx-auto max-w-2xl space-y-4 px-3 pb-28 pt-4 sm:space-y-6 sm:px-4 lg:pb-6">
         {/* Punch card */}
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">今日打卡</h2>
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-400">Today</p>
+              <h2 className="text-xl font-bold text-gray-900 sm:text-lg sm:font-semibold">今日打卡</h2>
+            </div>
             <span
-              className={`text-sm font-medium px-2.5 py-0.5 rounded-full ${
+              className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${
                 status === "working"
                   ? "bg-green-100 text-green-700"
                   : "bg-gray-100 text-gray-600"
@@ -185,7 +188,7 @@ function EssHome() {
           <button
             onClick={onPunch}
             disabled={punching || loading}
-            className="w-full rounded-lg py-5 text-xl font-bold text-white disabled:opacity-60"
+            className="w-full rounded-2xl py-6 text-2xl font-bold text-white shadow-lg shadow-gray-200 active:scale-[0.99] disabled:opacity-60 sm:rounded-lg sm:py-5 sm:text-xl"
             style={{ backgroundColor: "var(--brand)" }}
           >
             {punching ? "打卡中…" : nextAction}
@@ -205,11 +208,11 @@ function EssHome() {
             ) : records.length === 0 ? (
               <p className="text-sm text-gray-400">尚無打卡紀錄</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {records.map((r) => (
                   <li
                     key={r.id}
-                    className="flex items-center justify-between text-sm"
+                    className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm"
                   >
                     <span
                       className={
@@ -231,9 +234,9 @@ function EssHome() {
 
         {/* Announcements */}
         {/* LinkUp 我的快捷 */}
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-800">我的快捷</h2>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: "請假", href: "/ess/requests" },
               { label: "加班", href: "/ess/requests" },
@@ -251,7 +254,7 @@ function EssHome() {
               <button
                 key={q.label}
                 onClick={() => router.push(q.href)}
-                className="rounded-lg border border-gray-100 bg-gray-50 px-2 py-3 text-sm text-gray-700 hover:bg-gray-100"
+                className="rounded-2xl border border-gray-100 bg-gray-50 px-3 py-4 text-sm font-medium text-gray-700 hover:bg-gray-100 active:scale-[0.99] sm:rounded-lg sm:py-3"
               >
                 {q.label}
               </button>
@@ -279,7 +282,7 @@ function EssHome() {
 
         {/* LinkUp 待辦 + 便利貼 */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="mb-2 text-lg font-semibold text-gray-800">待辦事項</h2>
             <button onClick={() => router.push("/ess/requests")} className="text-sm text-gray-600 hover:underline">
               進行中的申請/待我簽核：
@@ -289,7 +292,7 @@ function EssHome() {
               筆
             </button>
           </section>
-          <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
             <div className="mb-2 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-gray-800">便利貼</h2>
               <span className="text-xs text-gray-400">
@@ -312,7 +315,7 @@ function EssHome() {
           </section>
         </div>
 
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">最新公告</h2>
           {loading ? (
             <p className="text-sm text-gray-400">載入中…</p>
@@ -322,7 +325,7 @@ function EssHome() {
             <ul className="divide-y divide-gray-100">
               {announcements.map((a) => (
                 <li key={a.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-baseline justify-between gap-3">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
                     <h3 className="font-medium text-gray-800">{a.title}</h3>
                     <time className="shrink-0 text-xs text-gray-400">
                       {new Date(a.created_at).toLocaleDateString("zh-TW")}

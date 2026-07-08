@@ -230,39 +230,39 @@ function ScheduleInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="schedule" isAdmin={isAdmin} />
-      <main className="mx-auto max-w-6xl space-y-4 p-4">
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+      <main className="mx-auto max-w-6xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-sm font-medium" style={{ color: "var(--brand, #2563eb)" }}>Apollo ESS</p>
               <h2 className="text-2xl font-semibold text-gray-900">個人班表</h2>
               <p className="mt-1 text-sm text-gray-500">查看月曆、班次與確認／異議流程。</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
               <button
                 type="button"
                 onClick={() => setYm(addMonths(ym, -1))}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 sm:rounded-lg"
               >
                 上月
               </button>
               <input
                 type="month"
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-400"
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-400 sm:rounded-lg"
                 value={ym}
                 onChange={(event) => setYm(event.target.value)}
               />
               <button
                 type="button"
                 onClick={() => setYm(addMonths(ym, 1))}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 sm:rounded-lg"
               >
                 下月
               </button>
               <button
                 type="button"
                 onClick={() => setYm(currentMonthKey())}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-white"
+                className="rounded-xl px-3 py-2 text-sm font-medium text-white sm:rounded-lg"
                 style={{ backgroundColor: "var(--brand, #2563eb)" }}
               >
                 本月
@@ -329,7 +329,11 @@ function ScheduleInner() {
 
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
-          <div className="mb-6 overflow-hidden rounded-xl border border-gray-100">
+          <div className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-800 sm:hidden">
+            手機版以「班表明細」為主；需要月曆視覺可用平板或桌機查看。
+          </div>
+
+          <div className="mb-6 hidden overflow-hidden rounded-xl border border-gray-100 sm:block">
             <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
               <div>
                 <h3 className="font-semibold text-gray-900">{monthLabel(ym)}</h3>
@@ -388,8 +392,8 @@ function ScheduleInner() {
                 const canConfirm = row.status !== "confirmed" && row.status !== "day_off";
                 const canDispute = row.status !== "disputed" && row.status !== "day_off";
                 return (
-                  <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-                    <div className="flex items-center gap-3">
+                  <li key={row.id} className="flex flex-col gap-3 px-4 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
                       <span className="w-24 font-medium tabular-nums text-gray-800">{row.work_date}</span>
                       <span className="text-gray-600">{shiftLabel(row.shift_id)}</span>

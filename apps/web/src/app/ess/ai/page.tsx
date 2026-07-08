@@ -48,8 +48,8 @@ function EssAiPageInner() {
         active="ai"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-3xl space-y-6 p-4">
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-28 pt-4 sm:space-y-6 sm:px-4 lg:pb-6">
+        <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
           <h1 className="text-xl font-bold text-gray-900">AI 問答</h1>
           <p className="mt-1 text-sm text-gray-500">
             員工問答只會使用你的個人差勤、表單、薪資單與通知資料；不會揭露其他員工資料。
@@ -58,7 +58,7 @@ function EssAiPageInner() {
 
         {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <label className="text-sm font-medium text-gray-700">
               區間起
@@ -86,14 +86,14 @@ function EssAiPageInner() {
             type="button"
             onClick={() => void ask()}
             disabled={loading || !question.trim()}
-            className="mt-3 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-60 sm:w-auto sm:rounded-md sm:py-2"
             style={{ backgroundColor: "var(--brand)" }}
           >
             {loading ? "回答中…" : "詢問 AI"}
           </button>
         </section>
 
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
           <h2 className="font-semibold text-gray-900">回答</h2>
           <pre className="mt-3 min-h-52 whitespace-pre-wrap rounded-xl bg-gray-50 p-4 text-sm leading-6 text-gray-700">
             {answer || "AI 回答會顯示在這裡。"}

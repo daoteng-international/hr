@@ -261,17 +261,17 @@ function PunchesInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="punches" isAdmin={isAdmin} />
-      <main className="mx-auto max-w-6xl space-y-4 p-4">
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <main className="mx-auto max-w-6xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">打卡紀錄</h2>
               <p className="mt-1 text-sm text-gray-500">查詢上下班、休息、外出與異常紀錄，可匯出 CSV 留存。</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:flex-wrap">
               <a
                 href="/ess/requests"
-                className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50"
                 title="前往新增申請，類型請選補卡"
               >
                 忘打卡／申請補卡
@@ -279,19 +279,19 @@ function PunchesInner() {
               <button
                 onClick={() => exportCsv(rows, tab, from, to)}
                 disabled={rows.length === 0}
-                className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ backgroundColor: "var(--brand)" }}
               >
                 匯出 CSV
               </button>
             </div>
           </div>
-          <nav className="mb-4 flex gap-1 border-b border-gray-100 pb-2">
+          <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-gray-100 pb-2">
             {TABS.map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${tab === t ? "text-white" : "text-gray-600 hover:bg-gray-100"}`}
                 style={tab === t ? { backgroundColor: "var(--brand)" } : undefined}
               >
                 {t}
@@ -312,7 +312,7 @@ function PunchesInner() {
               </div>
             ))}
           </div>
-          <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="mb-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">查詢日期（起）</label>
               <input type="date" className={input} value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -324,15 +324,52 @@ function PunchesInner() {
             <button
               onClick={() => void load()}
               disabled={loading}
-              className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
               style={{ backgroundColor: "var(--brand)" }}
             >
               {loading ? "搜尋中…" : "搜尋"}
             </button>
-            <p className="text-xs text-gray-500">異常頁籤會以平日檢查缺上班或缺下班；休息/外出僅列已有紀錄的日期。</p>
           </div>
+          <p className="mb-4 text-xs text-gray-500">異常頁籤會以平日檢查缺上班或缺下班；休息/外出僅列已有紀錄的日期。</p>
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-          <div className="overflow-x-auto">
+          <div className="space-y-3 md:hidden">
+            {rows.map((row) => (
+              <article key={`${row.category}-${row.date}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{row.date}</p>
+                    <p className="text-xs text-gray-500">{row.category} · {durationText(row)}</p>
+                  </div>
+                  {row.issues.length === 0 ? (
+                    <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">完整</span>
+                  ) : (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                      {row.issues.join("、")}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-xs text-gray-400">{row.inLabel}</p>
+                    <p className="mt-1 font-semibold tabular-nums text-gray-800">{row.in ? hhmm(row.in.punch_at) : "—"}</p>
+                    <p className="mt-1 text-xs text-gray-500">{sourceOf(row.in) || "—"}</p>
+                  </div>
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-xs text-gray-400">{row.outLabel}</p>
+                    <p className="mt-1 font-semibold tabular-nums text-gray-800">{row.out ? hhmm(row.out.punch_at) : "—"}</p>
+                    <p className="mt-1 text-xs text-gray-500">{sourceOf(row.out) || "—"}</p>
+                  </div>
+                </div>
+                {row.issues.length > 0 && (
+                  <a href="/ess/requests" className="mt-3 inline-block text-sm font-medium hover:underline" style={{ color: "var(--brand)" }}>
+                    申請補卡
+                  </a>
+                )}
+              </article>
+            ))}
+            {rows.length === 0 && <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-400">查無資料</p>}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-500">

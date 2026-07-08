@@ -304,15 +304,15 @@ function RequestsView() {
         active="requests"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-2xl p-4 space-y-6">
+      <main className="mx-auto max-w-2xl space-y-6 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
         {/* New request form */}
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">新增申請</h2>
           <form onSubmit={onSubmit} className="space-y-4">
             {isAdmin && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">申請人</label>
-                <div className="flex items-center gap-6 text-sm text-gray-700">
+                <div className="grid grid-cols-2 gap-3 text-sm text-gray-700 sm:flex sm:items-center sm:gap-6">
                   <label className="flex items-center gap-2">
                     <input type="radio" name="proxy" checked={!proxy} onChange={() => setProxy(false)} />
                     本人
@@ -322,7 +322,7 @@ function RequestsView() {
                     代申請
                   </label>
                   {proxy && (
-                    <select value={proxyEmpId} onChange={(e) => setProxyEmpId(e.target.value)} className={inputCls}>
+                    <select value={proxyEmpId} onChange={(e) => setProxyEmpId(e.target.value)} className={`${inputCls} col-span-2`}>
                       <option value="">請選擇員工</option>
                       {employees.map((emp) => (
                         <option key={emp.id} value={emp.id}>{emp.name}</option>
@@ -381,7 +381,7 @@ function RequestsView() {
 
             {kind === "leave" && (
               <div>
-                <div className="mb-1 flex items-center justify-between">
+                <div className="mb-1 flex items-center justify-between gap-3">
                   <label className="block text-sm font-medium text-gray-700">日期段（多段請假）</label>
                   <button type="button" onClick={addSegment} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
                     ＋ 新增
@@ -392,11 +392,10 @@ function RequestsView() {
                 ) : (
                   <div className="space-y-2">
                     {segments.map((seg, i) => (
-                      <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-                        <input type="date" value={seg.date} onChange={(e) => updateSegment(i, { date: e.target.value })} className="rounded-md border border-gray-300 px-2 py-1.5" />
-                        <input type="time" value={seg.startTime} onChange={(e) => updateSegment(i, { startTime: e.target.value })} className="rounded-md border border-gray-300 px-2 py-1.5" />
-                        <span>~</span>
-                        <input type="time" value={seg.endTime} onChange={(e) => updateSegment(i, { endTime: e.target.value })} className="rounded-md border border-gray-300 px-2 py-1.5" />
+                      <div key={i} className="grid grid-cols-2 items-center gap-2 rounded-xl bg-gray-50 p-3 text-sm sm:flex sm:flex-wrap">
+                        <input type="date" value={seg.date} onChange={(e) => updateSegment(i, { date: e.target.value })} className="col-span-2 rounded-md border border-gray-300 px-2 py-2 sm:col-span-1" />
+                        <input type="time" value={seg.startTime} onChange={(e) => updateSegment(i, { startTime: e.target.value })} className="rounded-md border border-gray-300 px-2 py-2" />
+                        <input type="time" value={seg.endTime} onChange={(e) => updateSegment(i, { endTime: e.target.value })} className="rounded-md border border-gray-300 px-2 py-2" />
                         <span className="text-xs text-gray-500">{seg.hours} 小時</span>
                         <button type="button" onClick={() => setSegments((pv) => pv.filter((_, idx) => idx !== i))} className="text-xs text-red-600 hover:underline">
                           移除
@@ -506,7 +505,7 @@ function RequestsView() {
             {kind === "ot" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">給付方式</label>
-                <div className="flex gap-6 text-sm text-gray-700">
+                <div className="grid grid-cols-2 gap-3 text-sm text-gray-700 sm:flex sm:gap-6">
                   <label className="flex items-center gap-2">
                     <input type="radio" name="payout" checked={payout === "pay"} onChange={() => setPayout("pay")} />
                     加班費
@@ -523,7 +522,7 @@ function RequestsView() {
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">類型</label>
-                  <div className="flex gap-6 text-sm text-gray-700">
+                  <div className="grid grid-cols-1 gap-3 text-sm text-gray-700 sm:flex sm:gap-6">
                     <label className="flex items-center gap-2">
                       <input type="radio" name="tripType" checked={tripType === "outing"} onChange={() => setTripType("outing")} />
                       公出（一天以內）
@@ -586,7 +585,7 @@ function RequestsView() {
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-md px-5 py-2.5 font-medium text-white disabled:opacity-60"
+              className="w-full rounded-xl px-5 py-3 font-medium text-white disabled:opacity-60 sm:w-auto sm:rounded-md sm:py-2.5"
               style={{ backgroundColor: "var(--brand)" }}
             >
               {submitting ? "送出中…" : "送出申請"}
@@ -595,7 +594,7 @@ function RequestsView() {
         </section>
 
         {/* My requests */}
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">我的申請</h2>
           {listError && (
             <p className="text-sm text-red-600 mb-3" role="alert">
@@ -610,8 +609,8 @@ function RequestsView() {
             <ul className="divide-y divide-gray-100">
               {requests.map((r) => (
                 <li key={r.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-gray-800">
                         {KIND_LABEL[r.kind]}
                       </span>

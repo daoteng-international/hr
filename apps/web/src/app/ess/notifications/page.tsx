@@ -113,9 +113,9 @@ function NotificationsInner() {
         active="notifications"
         isAdmin={isAdmin}
       />
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">通知中心</h2>
               <p className="mt-1 text-sm text-gray-500">
@@ -127,11 +127,11 @@ function NotificationsInner() {
             </span>
           </div>
 
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-center">
             <select
               value={statusFilter}
               onChange={(event) => void onChangeStatus(event.target.value as NotificationStatus | "all")}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+              className="rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-gray-400 focus:outline-none sm:rounded-md sm:py-2"
             >
               <option value="all">全部狀態</option>
               <option value="pending">待處理</option>
@@ -150,14 +150,14 @@ function NotificationsInner() {
               type="button"
               onClick={() => void markAllVisibleRead()}
               disabled={filtered.every(isRead)}
-              className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 disabled:opacity-40"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 disabled:opacity-40 sm:rounded-md sm:py-2"
             >
               可見項目全標已讀
             </button>
             <button
               type="button"
               onClick={() => void load()}
-              className="text-sm text-gray-500 hover:underline"
+              className="rounded-xl bg-gray-50 px-3 py-2.5 text-center text-sm text-gray-600 hover:underline sm:bg-transparent sm:p-0 sm:text-left sm:text-gray-500"
             >
               重新整理
             </button>
@@ -172,7 +172,7 @@ function NotificationsInner() {
             <ul className="divide-y divide-gray-100">
               {filtered.map((item) => (
                 <li key={item.id} className="py-4">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
                         <span
@@ -198,7 +198,7 @@ function NotificationsInner() {
                         type="button"
                         onClick={() => void onMarkRead(item.id)}
                         disabled={markingId === item.id}
-                        className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        className="w-full shrink-0 rounded-xl px-3 py-2.5 text-sm font-medium text-white disabled:opacity-50 sm:w-auto sm:rounded-md sm:py-1.5"
                         style={{ backgroundColor: "var(--brand)" }}
                       >
                         {markingId === item.id ? "處理中…" : "標記已讀"}

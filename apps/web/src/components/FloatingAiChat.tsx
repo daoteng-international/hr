@@ -85,9 +85,9 @@ export function FloatingAiChat() {
   if (!ready) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 print:hidden">
+    <div className="fixed bottom-24 right-3 z-50 print:hidden lg:bottom-5 lg:right-5">
       {open && (
-        <section className="mb-3 flex h-[560px] w-[min(92vw,420px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <section className="mb-3 flex h-[min(70vh,560px)] w-[min(94vw,420px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl lg:h-[560px]">
           <header className="flex items-start justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
             <div>
               <h2 className="text-sm font-semibold">HR AI 聊天助理</h2>

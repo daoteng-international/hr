@@ -12,6 +12,11 @@ import {
   type MyPayslip,
 } from "@/lib/ess-api";
 
+function money(value: string): string {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount.toLocaleString("zh-TW") : value;
+}
+
 function PayslipsInner() {
   const [branding, setBranding] = useState<Branding | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -29,11 +34,33 @@ function PayslipsInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="payslips" isAdmin={isAdmin} />
-      <main className="mx-auto max-w-2xl space-y-4 p-4">
-        <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+      <main className="mx-auto max-w-2xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-800">我的薪資單</h2>
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-          <table className="w-full text-left text-sm">
+          <div className="space-y-3 md:hidden">
+            {rows.map((p) => (
+              <article key={p.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{p.period}</h3>
+                    <p className="text-xs text-gray-400">我的薪資單</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${p.status === "finalized" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                    {p.status === "finalized" ? "已定案" : "草稿"}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{money(p.gross)} 元</p>
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                  <div><dt className="text-xs text-gray-400">本薪</dt><dd className="font-medium text-gray-800">{money(p.base)}</dd></div>
+                  <div><dt className="text-xs text-gray-400">加班</dt><dd className="font-medium text-gray-800">{money(p.overtime_pay)}</dd></div>
+                  <div><dt className="text-xs text-gray-400">全勤</dt><dd className="font-medium text-gray-800">{money(p.attendance_bonus)}</dd></div>
+                </dl>
+              </article>
+            ))}
+            {rows.length === 0 && <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-400">尚無薪資單</p>}
+          </div>
+          <table className="hidden w-full text-left text-sm md:table">
             <thead>
               <tr className="border-b border-gray-200 text-xs text-gray-500">
                 <th className="py-2 pr-4">期間</th>

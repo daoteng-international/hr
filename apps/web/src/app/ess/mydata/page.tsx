@@ -316,19 +316,19 @@ function MyDataInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <EssHeader appName={branding?.appName} primaryColor={branding?.primaryColor} active="mydata" isAdmin={isAdmin} />
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
+      <main className="mx-auto max-w-3xl space-y-4 px-3 pb-28 pt-4 sm:px-4 lg:pb-6">
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!data ? (
           <p className="text-sm text-gray-400">載入中…</p>
         ) : (
-          <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
             {/* Apollo 六分頁 */}
-            <nav className="mb-5 flex flex-wrap gap-1 border-b border-gray-100 pb-2">
+            <nav className="-mx-1 mb-5 flex gap-1 overflow-x-auto border-b border-gray-100 px-1 pb-2 sm:flex-wrap sm:overflow-visible">
               {TABS.map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium sm:rounded-md sm:px-3 sm:py-1.5 ${tab === t ? "text-white" : "text-gray-600 hover:bg-gray-100"}`}
                   style={tab === t ? { backgroundColor: "var(--brand)" } : undefined}
                 >
                   {t}
@@ -378,7 +378,7 @@ function MyDataInner() {
             {tab === "學歷證照" && (
               <div className="space-y-6">
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="font-semibold text-gray-800">學歷資料</h3>
                     <button onClick={() => setShowEduForm((s) => !s)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
                       {showEduForm ? "收合" : "＋ 新增學歷"}
@@ -447,7 +447,7 @@ function MyDataInner() {
                   )}
                   <ul className="divide-y divide-gray-100">
                     {data.educations.map((e) => (
-                      <li key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <li key={e.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span>
                           <span className="font-medium text-gray-800">{e.school}</span>{" "}
                           <span className="text-gray-500">{[e.degree, e.major, e.study_status].filter(Boolean).join(" · ")}</span>
@@ -470,7 +470,7 @@ function MyDataInner() {
                   </ul>
                 </div>
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="font-semibold text-gray-800">證照資料</h3>
                     <button onClick={() => setShowCertForm((s) => !s)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
                       {showCertForm ? "收合" : "＋ 新增證照"}
@@ -507,7 +507,7 @@ function MyDataInner() {
                   )}
                   <ul className="divide-y divide-gray-100">
                     {data.certifications.map((c) => (
-                      <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <li key={c.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span>
                           <span className="font-medium text-gray-800">{c.name}</span>{" "}
                           <span className="text-gray-500">
@@ -535,7 +535,7 @@ function MyDataInner() {
 
             {tab === "工作經歷" && (
               <div>
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="font-semibold text-gray-800">工作經歷</h3>
                   <button onClick={() => setShowWorkForm((s) => !s)} className="text-sm font-medium" style={{ color: "var(--brand)" }}>
                     {showWorkForm ? "收合" : "＋ 新增經歷"}
@@ -572,7 +572,7 @@ function MyDataInner() {
                 )}
                 <ul className="divide-y divide-gray-100">
                   {data.workHistory.map((w) => (
-                    <li key={w.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <li key={w.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <span>
                         <span className="font-medium text-gray-800">{w.company}</span>{" "}
                         <span className="text-gray-500">
