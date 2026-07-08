@@ -69,7 +69,6 @@ export function EssHeader({
     { key: "ai", label: "AI 問答", short: "AI", href: "/ess/ai" },
     { key: "mydata", label: "我的資料", short: "資料", href: "/ess/mydata" },
   ];
-  const activeTab = tabs.find((item) => item.key === active) ?? tabs[0];
 
   const tab = (
     key: (typeof tabs)[number]["key"],
@@ -120,29 +119,23 @@ export function EssHeader({
           </button>
         </div>
       </div>
-      <div className="relative z-20 mt-3 flex items-center gap-2 lg:hidden">
-        <span
-          className="shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-white"
-          style={{ backgroundColor: "var(--brand)" }}
-        >
-          {activeTab.label}
-        </span>
-        <label className="relative min-w-0 flex-1">
-          <span className="sr-only">切換功能</span>
-          <select
-            value={activeTab.href}
-            onChange={(event) => router.push(event.target.value)}
-            className="w-full appearance-none rounded-full border border-gray-200 bg-gray-50 px-4 py-2 pr-9 text-sm font-medium text-gray-700 outline-none"
+      <nav className="relative z-20 -mx-3 mt-3 flex gap-2 overflow-x-auto px-3 pb-1 lg:hidden" aria-label="員工功能切換">
+        {tabs.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => router.push(item.href)}
+            className={`shrink-0 rounded-full px-5 py-3 text-base font-semibold transition active:scale-[0.98] ${
+              active === item.key
+                ? "text-white shadow-sm"
+                : "border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+            }`}
+            style={active === item.key ? { backgroundColor: "var(--brand)" } : undefined}
           >
-            {tabs.map((item) => (
-              <option key={item.key} value={item.href}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">▼</span>
-        </label>
-      </div>
+            {item.label}
+          </button>
+        ))}
+      </nav>
       <nav className="mt-3 hidden gap-1 overflow-x-auto pb-1 lg:flex lg:flex-wrap lg:overflow-visible lg:pb-0">
         {tabs.map((item) => tab(item.key, item.label, item.href))}
       </nav>
