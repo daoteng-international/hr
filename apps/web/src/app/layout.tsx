@@ -17,7 +17,7 @@ interface Branding {
 function getBranding(): Branding {
   return {
     brandColor: "#1F4E79",
-    title: "HR 差勤系統",
+    title: "HRLink 員工入口",
   };
 }
 
@@ -25,7 +25,7 @@ const branding = getBranding();
 
 export const metadata: Metadata = {
   title: branding.title,
-  description: "多租戶白標 HR 差勤系統",
+  description: "HRLink 員工入口",
 };
 
 export const viewport: Viewport = {
