@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 
 type ModuleCategory = "核心人資" | "差勤排班" | "薪資財務" | "招募成長" | "AI 與整合";
@@ -137,6 +138,7 @@ const setupBase = 18000;
 const annualDiscount = 0.86;
 const lineOfficialUrl = "https://line.me/R/ti/p/jWy10iiO7D";
 const implementationMultiplier = 1.2;
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 function currency(value: number) {
   return new Intl.NumberFormat("zh-TW", {
@@ -151,6 +153,12 @@ export default function QuotePage() {
   const [annual, setAnnual] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(["core", "attendance", "forms", "payroll", "ai"]));
   const [copied, setCopied] = useState(false);
+  const [leadFormOpen, setLeadFormOpen] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadStatus, setLeadStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [leadError, setLeadError] = useState("");
 
   const selectedModules = useMemo(() => modules.filter((item) => selected.has(item.id)), [selected]);
   const quote = useMemo(() => {
@@ -186,6 +194,57 @@ export default function QuotePage() {
     await navigator.clipboard.writeText(lines.join("\n"));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  async function submitLead(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLeadError("");
+
+    if (selectedModules.length === 0) {
+      setLeadError("請先選擇至少一個 HR 模組。");
+      return;
+    }
+
+    setLeadStatus("sending");
+    try {
+      const response = await fetch(`${apiUrl}/quote-leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer: {
+            name: leadName.trim(),
+            phone: leadPhone.trim(),
+            email: leadEmail.trim(),
+          },
+          quote: {
+            employees,
+            billingCycle: annual ? "annual" : "monthly",
+            monthly: quote.monthly,
+            yearly: quote.yearly,
+            implementation: quote.implementation,
+            selectedModules: selectedModules.map((item) => ({
+              id: item.id,
+              name: item.name,
+              category: item.category,
+            })),
+          },
+          pageUrl: window.location.href,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(body.error ?? body.message ?? "送出失敗");
+      }
+
+      setLeadStatus("sent");
+      window.setTimeout(() => {
+        window.location.href = lineOfficialUrl;
+      }, 700);
+    } catch (err) {
+      setLeadStatus("idle");
+      setLeadError(err instanceof Error ? err.message : "送出失敗，請稍後再試。");
+    }
   }
 
   return (
@@ -297,14 +356,76 @@ export default function QuotePage() {
                 </ul>
               )}
             </div>
-            <a
-              href={lineOfficialUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-5 block w-full rounded-2xl bg-blue-700 px-5 py-3 text-center font-bold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800"
-            >
-              聯絡 LINE@
-            </a>
+            {!leadFormOpen ? (
+              <button
+                type="button"
+                onClick={() => setLeadFormOpen(true)}
+                className="mt-5 w-full rounded-2xl bg-blue-700 px-5 py-3 text-center font-bold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800"
+              >
+                聯絡 LINE@
+              </button>
+            ) : (
+              <form onSubmit={submitLead} className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-slate-950">留下聯絡資料</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">送出後會把此報價寄給管理員，並自動開啟 LINE@。</p>
+                  </div>
+                  <button type="button" onClick={() => setLeadFormOpen(false)} className="text-sm font-bold text-slate-400 hover:text-slate-600">
+                    關閉
+                  </button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <label className="block">
+                    <span className="text-xs font-bold text-slate-500">姓名</span>
+                    <input
+                      required
+                      value={leadName}
+                      onChange={(event) => setLeadName(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      placeholder="請輸入姓名"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-bold text-slate-500">聯絡電話</span>
+                    <input
+                      required
+                      value={leadPhone}
+                      onChange={(event) => setLeadPhone(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      placeholder="0912-345-678"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-bold text-slate-500">Email</span>
+                    <input
+                      required
+                      type="email"
+                      value={leadEmail}
+                      onChange={(event) => setLeadEmail(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      placeholder="name@example.com"
+                    />
+                  </label>
+                </div>
+                {leadError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{leadError}</p>}
+                {leadStatus === "sent" && (
+                  <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                    已寄出報價，正在開啟 LINE@。
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={leadStatus === "sending" || selectedModules.length === 0}
+                  className="mt-4 w-full rounded-2xl bg-blue-700 px-5 py-3 text-center font-bold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                >
+                  {leadStatus === "sending" ? "送出中..." : "送出並前往 LINE@"}
+                </button>
+                <a href={lineOfficialUrl} target="_blank" rel="noreferrer" className="mt-3 block text-center text-xs font-bold text-blue-700 hover:underline">
+                  已填過資料？直接開啟 LINE@
+                </a>
+              </form>
+            )}
             <p className="mt-3 text-xs leading-5 text-slate-400">此頁為初步估價工具，正式報價可依導入範圍、資料移轉、客製整合與合約年限調整。</p>
           </aside>
         </div>

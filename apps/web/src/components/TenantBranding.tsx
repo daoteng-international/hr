@@ -6,6 +6,7 @@ import { getBranding } from "@/lib/ess-api";
 
 const EMPLOYEE_TITLE = "HRLink 員工入口";
 const ADMIN_TITLE = "HRLink 管理後台";
+const QUOTE_TITLE = "HRLink 方案估價器";
 
 export function TenantBranding() {
   const pathname = usePathname();
@@ -20,7 +21,9 @@ export function TenantBranding() {
         if (primaryColor) {
           document.documentElement.style.setProperty("--brand", primaryColor);
         }
-        if (pathname.startsWith("/admin")) {
+        if (pathname === "/quote") {
+          document.title = QUOTE_TITLE;
+        } else if (pathname.startsWith("/admin")) {
           document.title = ADMIN_TITLE;
         } else if (pathname === "/login" || pathname.startsWith("/ess")) {
           document.title = EMPLOYEE_TITLE;

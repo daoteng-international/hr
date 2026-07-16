@@ -35,6 +35,7 @@ import { attachmentsRouter } from "./routes/attachments.js"
 import { internalJobsRouter } from "./routes/internal-jobs.js"
 import { personalNotesRouter } from "./routes/personal-notes.js"
 import { preferencesRouter } from "./routes/preferences.js"
+import { quoteLeadsRouter } from "./routes/quote-leads.js"
 
 const WEB_ORIGINS = (process.env.WEB_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -92,6 +93,7 @@ app.use(attachmentsRouter)
 app.use(internalJobsRouter)
 app.use(personalNotesRouter)
 app.use(preferencesRouter)
+app.use(quoteLeadsRouter)
 
 // 404 fallback.
 app.use((_req: Request, res: Response) => {
