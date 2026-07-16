@@ -135,6 +135,7 @@ const categories: ModuleCategory[] = ["核心人資", "差勤排班", "薪資財
 const platformBase = 2800;
 const setupBase = 18000;
 const annualDiscount = 0.86;
+const lineOfficialUrl = "https://line.me/R/ti/p/jWy10iiO7D";
 const implementationMultiplier = 1.2;
 
 function currency(value: number) {
@@ -195,7 +196,7 @@ export default function QuotePage() {
           <div className="relative z-10">
             <p className="mb-3 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-sm text-blue-100">HRLink 方案估價器</p>
             <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">選擇需要的 HR 模組，立即產生專屬報價</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-200">依照公司人數與功能需求，自由組合最適合的 HRLink 方案。報價可複製給業務或直接寄給客戶。</p>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-200">依照公司人數與功能需求，自由組合最適合的 HRLink 方案。報價可複製成摘要，也能直接聯絡 LINE@。</p>
             <div className="mt-7 flex flex-wrap gap-3 text-sm text-slate-200">
               <span className="rounded-full bg-white/10 px-3 py-1">即時計價</span>
               <span className="rounded-full bg-white/10 px-3 py-1">年繳折扣</span>
@@ -296,7 +297,14 @@ export default function QuotePage() {
                 </ul>
               )}
             </div>
-            <button onClick={() => void copyQuote()} className="mt-5 w-full rounded-2xl bg-blue-700 px-5 py-3 font-bold text-white shadow-lg shadow-blue-700/20">{copied ? "已複製" : "複製給業務"}</button>
+            <a
+              href={lineOfficialUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-5 block w-full rounded-2xl bg-blue-700 px-5 py-3 text-center font-bold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800"
+            >
+              聯絡 LINE@
+            </a>
             <p className="mt-3 text-xs leading-5 text-slate-400">此頁為初步估價工具，正式報價可依導入範圍、資料移轉、客製整合與合約年限調整。</p>
           </aside>
         </div>
