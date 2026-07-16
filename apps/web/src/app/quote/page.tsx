@@ -152,7 +152,7 @@ export default function QuotePage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    document.title = "HRLink 模組報價";
+    document.title = "HRLink 方案估價器";
   }, []);
 
   const selectedModules = useMemo(() => modules.filter((item) => selected.has(item.id)), [selected]);
@@ -178,7 +178,7 @@ export default function QuotePage() {
 
   async function copyQuote() {
     const lines = [
-      "HRLink 模組報價摘要",
+      "HRLink 方案估價摘要",
       `員工數：${employees} 人`,
       `付款週期：${annual ? "年繳（約 86 折）" : "月繳"}`,
       `選購模組：${selectedModules.map((item) => item.name).join("、") || "尚未選擇"}`,
@@ -197,9 +197,9 @@ export default function QuotePage() {
         <div className="absolute right-10 top-10 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="relative z-10">
-            <p className="mb-3 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-sm text-blue-100">HRLink 模組化方案</p>
-            <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">勾選 HR 模組，立即產生客戶報價</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-200">讓客戶依照公司規模與需求自由選購：人事、差勤、薪資、招募、AI 助理與整合模組。報價可複製給業務或直接寄給客戶。</p>
+            <p className="mb-3 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-sm text-blue-100">HRLink 方案估價器</p>
+            <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">選擇需要的 HR 模組，立即產生專屬報價</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-200">依照公司人數與功能需求，自由組合最適合的 HRLink 方案。報價可複製給業務或直接寄給客戶。</p>
             <div className="mt-7 flex flex-wrap gap-3 text-sm text-slate-200">
               <span className="rounded-full bg-white/10 px-3 py-1">即時計價</span>
               <span className="rounded-full bg-white/10 px-3 py-1">年繳折扣</span>
