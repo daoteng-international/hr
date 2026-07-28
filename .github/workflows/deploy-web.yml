@@ -4,7 +4,8 @@ name: Deploy Web to Vercel
 # has no Vercel webhook), so pushes did not auto-deploy the web app. This
 # workflow triggers a Vercel production deployment of the pushed commit via the
 # REST API — the same call we verified by hand — using the VERCEL_TOKEN secret.
-# Mirrors deploy-api.yml (Railway) for the API side.
+# The API (apps/api) needs no counterpart workflow: it moved off Railway to the
+# Vercel `hr-api` project, which deploys from the repo's Git integration.
 on:
   push:
     branches: [main]
