@@ -1,0 +1,3 @@
+This project deploys only Serverless Functions (see ../api/index.ts).
+Vercel still requires a static output directory to exist, so this file keeps
+`public/` in git. Nothing here is served as meaningful content.
