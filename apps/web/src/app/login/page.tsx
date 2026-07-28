@@ -12,9 +12,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Shorthand logins for the demo/test tenant — typing "demo" or "admin" is
+  // resolved to the matching account so testers don't need the full address.
+  const LOGIN_SHORTHANDS: Record<string, string> = {
+    demo: "demo@daoteng.demo",
+    admin: "admin@daoteng.demo",
+  };
   const resolveLoginEmail = (value: string) => {
     const normalized = value.trim();
-    return normalized.toLowerCase() === "demo" ? "demo@daoteng.demo" : normalized;
+    return LOGIN_SHORTHANDS[normalized.toLowerCase()] ?? normalized;
   };
 
   // Already signed in → skip the form.
@@ -70,7 +76,9 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
         />
-        <p className="-mt-2 mb-4 text-xs text-gray-400">Demo 可直接輸入 demo。</p>
+        <p className="-mt-2 mb-4 text-xs text-gray-400">
+          Demo 可直接輸入 demo（員工）或 admin（管理端）。
+        </p>
 
         <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
           密碼
