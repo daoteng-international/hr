@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "cd ../.. && npx turbo run build --filter=@hr/api",
+  "routes": [
+    {
+      "src": "/(?<path>.*)",
+      "dest": "/api/index",
+      "transforms": [
+        {
+          "type": "request.path",
+          "op": "set",
+          "args": "/$path"
+        }
+      ]
+    }
+  ]
+}
