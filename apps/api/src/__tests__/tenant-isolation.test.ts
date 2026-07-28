@@ -218,7 +218,7 @@ describe("white-label branding read", () => {
 
     expect(res.status).toBe(200)
     expect(res.body.branding).toMatchObject({
-      primaryColor: "#1F4E79",
+      primaryColor: "#00429A",
       appName: A.name,
       logoUrl: null,
     })

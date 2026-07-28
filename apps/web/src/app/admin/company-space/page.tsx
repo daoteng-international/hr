@@ -24,7 +24,7 @@ const DEFAULT_PERMISSIONS: TenantPermission[] = [
 const DEFAULT_WIDGETS = ["待簽核申請", "期末在職", "新進/離職", "公告", "薪資作業"];
 
 export default function CompanySpacePage() {
-  const [branding, setBranding] = useState<Branding>({ appName: "HR 後台", primaryColor: "#4f46e5" });
+  const [branding, setBranding] = useState<Branding>({ appName: "HR 後台", primaryColor: "#00429A" });
   const [features, setFeatures] = useState<TenantFeatures>({});
   const [permissions, setPermissions] = useState<TenantPermission[]>(DEFAULT_PERMISSIONS);
   const [links, setLinks] = useState<InternalLink[]>([]);
@@ -37,7 +37,7 @@ export default function CompanySpacePage() {
   useEffect(() => {
     getBranding()
       .then((res) => {
-        setBranding({ appName: "HR 後台", primaryColor: "#4f46e5", ...(res.branding ?? {}) });
+        setBranding({ appName: "HR 後台", primaryColor: "#00429A", ...(res.branding ?? {}) });
         const nextFeatures = res.features ?? {};
         setFeatures(nextFeatures);
         setPermissions(nextFeatures.permissions?.length ? nextFeatures.permissions : DEFAULT_PERMISSIONS);
@@ -81,7 +81,7 @@ export default function CompanySpacePage() {
 
     try {
       const saved = await saveTenantSettings({ branding: nextBranding, features: nextFeatures });
-      setBranding({ appName: "HR 後台", primaryColor: "#4f46e5", ...(saved.branding ?? {}) });
+      setBranding({ appName: "HR 後台", primaryColor: "#00429A", ...(saved.branding ?? {}) });
       setFeatures(saved.features ?? {});
       setPermissions(saved.features?.permissions ?? nextPermissions);
       setLinks(saved.features?.internalLinks ?? nextLinks);
@@ -174,7 +174,7 @@ export default function CompanySpacePage() {
             <input
               type="color"
               className="h-10 w-full rounded-md border border-gray-300"
-              value={branding.primaryColor ?? "#4f46e5"}
+              value={branding.primaryColor ?? "#00429A"}
               onChange={(event) => setBranding({ ...branding, primaryColor: event.target.value })}
             />
           </div>

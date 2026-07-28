@@ -37,7 +37,7 @@ export async function provisionTenant({
     .from("tenants")
     .insert({
       name,
-      branding: { logoUrl: null, primaryColor: "#1F4E79", appName: name },
+      branding: { logoUrl: null, primaryColor: "#00429A", appName: name },
       features: { payroll: true, kpi: true, ai_assistant: true },
     })
     .select("id")

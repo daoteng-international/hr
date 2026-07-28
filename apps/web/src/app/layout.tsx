@@ -16,7 +16,7 @@ interface Branding {
 
 function getBranding(): Branding {
   return {
-    brandColor: "#1F4E79",
+    brandColor: "#00429A",
     title: "HRLink 員工入口",
   };
 }

@@ -249,7 +249,7 @@ export default function QuotePage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-900">
-      <section className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,#1f4e79_0,#0f172a_45%,#020617_100%)] px-4 py-10 text-white sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,#00429a_0,#0f172a_45%,#020617_100%)] px-4 py-10 text-white sm:px-6 lg:px-8">
         <div className="absolute right-10 top-10 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="relative z-10">
